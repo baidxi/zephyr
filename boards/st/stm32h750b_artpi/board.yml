@@ -1,0 +1,6 @@
+board:
+  name: stm32h750b_artpi
+  full_name: STM32H750B artpi
+  vendor: st
+  socs:
+    - name: stm32h750xx

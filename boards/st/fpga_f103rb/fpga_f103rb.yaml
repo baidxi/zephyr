@@ -1,0 +1,19 @@
+identifier: fpga_f103rb_f103rb
+name: ST FPGA F103RB
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 20
+flash: 128
+supported:
+  - gpio
+  - spi
+  - pwm
+  - watchdog
+  - adc
+  - dma
+  - nvs
+  - counter
+vendor: st

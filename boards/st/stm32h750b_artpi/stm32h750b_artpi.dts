@@ -1,0 +1,99 @@
+/dts-v1/;
+#include <st/h7/stm32h750Xb.dtsi>
+#include <st/h7/stm32h750xbhx-pinctrl.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+    model = "STM32H750B artpi";
+	compatible = "st,stm32h750b-artpi";
+
+    chosen {
+        zephyr,console = &uart4;
+        zephyr,shell-uart = &uart4;
+        zephyr,flash = &flash0;
+        zephyr,sram = &sram0;
+    };
+
+    i2c5 {
+        compatible = "gpio-i2c";
+        #address-cells = <1>;
+        #size-cells = <0>;
+        clock-frequency = <I2C_BITRATE_STANDARD>;
+        scl-gpios = <&gpioh 11  (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
+        sda-gpios = <&gpioh 12  (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
+        status = "okay";
+        mpu6886: mpu6886@68 {
+            compatible = "invensense,mpu6050";
+            reg = <0x68>;
+            status = "okay";
+        };
+    };
+};
+
+&clk_hse {
+	clock-frequency = <DT_FREQ_M(25)>;
+	// hse-bypass;
+	status = "okay";
+};
+
+&clk_lse {
+	status = "okay";
+};
+
+&pll {
+	div-m = <5>;
+	mul-n = <192>;
+	div-p = <2>;
+	div-q = <2>;
+	div-r = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&pll3 {
+	div-m = <5>;
+	mul-n = <160>;
+	div-p = <8>;
+	div-q = <8>;
+	div-r = <24>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(400)>;
+	d1cpre = <1>;
+	hpre = <2>;
+	d1ppre = <2>;
+	d2ppre1 = <2>;
+	d2ppre2 = <2>;
+	d3ppre = <2>;
+};
+
+&uart4 {
+    pinctrl-0 = <&uart4_tx_pa0 &uart4_rx_pi9>;
+    pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK(APB4, 16)>,
+		 <&rcc STM32_SRC_LSE RTC_SEL(1)>;
+	status = "okay";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* Flash has 128KB sector size */
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(128)>;
+		};
+	};
+};

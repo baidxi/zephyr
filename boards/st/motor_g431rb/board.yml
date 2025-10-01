@@ -1,0 +1,6 @@
+board:
+  name: motor_g431rb
+  full_name: Motor G431RB
+  vendor: st
+  socs:
+    - name: stm32g431xx

@@ -1,0 +1,2 @@
+config BOARD_MOTOR_G431RB
+    select SOC_STM32G431XX
