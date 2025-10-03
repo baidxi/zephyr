@@ -15,25 +15,28 @@
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
+		zephyr,display = &st7735r_160x80;
     };
 
     aliases {
   		qdec0 = &qdec;
 		pwm1 = &pwm1;
+		tty3 = &usart3;
     };
 
 	mipi_dbi_st7735r_160x80 {
 		compatible = "zephyr,mipi-dbi-spi";
-		spi-dev = <&spi3>;
 		dc-gpios = <&gpiod 2 GPIO_ACTIVE_HIGH>;
-		reset-gpios = <&gpioc 11 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpioc 11 GPIO_ACTIVE_LOW>;
+		spi-dev = <&spi3>;
+		write-only;
 		#address-cells = <1>;
 		#size-cells = <0>;
 
 		st7735r_160x80: st7735r@0 {
 			compatible = "sitronix,st7735r";
-			mipi-max-frequency = <20000000>;
-			mipi-mode = "MIPI_DBI_MODE_SPI_3WIRE";
+			mipi-max-frequency = <DT_FREQ_M(20)>;
+			mipi-mode = "MIPI_DBI_MODE_SPI_4WIRE";
 			reg = <0>;
 			width = <160>;
 			height = <80>;
@@ -41,21 +44,20 @@
 			rgb-is-inverted;
 			x-offset = <1>;
 			y-offset = <26>;
-			pwctr1 = [A2 02 84];
+			pwctr1 = [AB 0B 04];
 			pwctr2 = [C5];
-			pwctr3 = [0A 00];
-			pwctr4 = [8A 2A];
-			pwctr5 = [8A EE];
-			invctr = <7>;
-			frmctr1 = [01 2C 2D];
-			frmctr2 = [01 2C 2D];
-			frmctr3 = [01 2C 2D 01 2C 2D];
-			vmctr1 = <14>;
+			pwctr3 = [0D 00];
+			pwctr4 = [8D 6A];
+			pwctr5 = [8D EE];
+			invctr = <03>;
+			frmctr1 = [05 3C 3C];
+			frmctr2 = [05 3C 3C];
+			frmctr3 = [05 3C 3C 05 3C 3C];
+			vmctr1 = <15>;
 			gamctrp1 = [07 0E 08 07 10 07 02 07 09 0F 25 36 00 08 04 10];
 			gamctrn1 = [0A 0D 08 07 0F 07 02 07 09 0F 25 35 00 09 04 10];
 			colmod = <5>;
-			/* Set D3 (RGB) bit to 1. LV_COLOR_16_SWAP is enabled by default */
-			madctl = <120>; /* Set to <184> to rotate the image 180 degrees. */
+			madctl = <120>;
 			caset = [00 01 00 a0];
 			raset = [00 1a 00 69];
 		};
@@ -70,13 +72,30 @@
 		};
 
 		red_led: led_r {
-			gpios = <&gpioc 15 GPIO_ACTIVE_LOW>;
+			gpios = <&gpioc 15 (GPIO_ACTIVE_LOW | GPIO_PULL_DOWN)>;
 			label = "LED_R";
 		};
 
 		green_led: led_g {
-			gpios = <&gpioc 14 GPIO_ACTIVE_LOW>;
+			gpios = <&gpioc 14 (GPIO_ACTIVE_LOW | GPIO_PULL_DOWN)>;
 			label = "LED_G";
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		status = "okay";
+
+		key1: key1 {
+			label = "KEY1";
+			gpios = <&gpioc 9 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_1>;
+		};
+
+		key2: key2 {
+			label = "KEY2";
+			gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_2>;
 		};
 	};
 };
@@ -190,10 +209,19 @@
 	status = "okay";
 };
 
+&usart3 {
+	pinctrl-0 = <&usart3_tx_pb10 &usart3_rx_pb11>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
 &spi3 {
 	/* SPI3 on the ST Morpho Connector CN7 pins 17, 1, 2, 3*/
 	pinctrl-0 = <&spi3_sck_pc10 &spi3_mosi_pc12>;
 	pinctrl-names = "default";
+	cs-gpios = <&gpioa 15 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+	clock-frequency = <DT_FREQ_M(20)>;
 	status = "okay";
 };
 
