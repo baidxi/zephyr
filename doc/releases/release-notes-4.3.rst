@@ -62,6 +62,10 @@ Deprecated APIs and options
 ===========================
 
 * :dtcompatible:`maxim,ds3231` is deprecated in favor of :dtcompatible:`maxim,ds3231-rtc`.
+* Providing a third agument to :c:macro:`SPI_CONFIG_DT`, :c:macro:`SPI_CONFIG_DT_INST`,
+  :c:macro:`SPI_DT_SPEC_GET`, :c:macro:`SPI_DT_SPEC_INST_GET` is deprecated. Providing a
+  second argument to :c:macro:`SPI_CS_CONTROL_INIT` is deprecated. Use new DT properties
+  ``spi-cs-setup-delay-ns`` and ``spi-cs-hold-delay-ns`` to specify delay instead.
 
 * :c:enum:`bt_hci_bus` was deprecated as it was not used. :c:macro:`BT_DT_HCI_BUS_GET` should be
   used instead.
@@ -144,6 +148,13 @@ New APIs and options
   * :c:macro:`K_THREAD_HW_SHADOW_STACK_ARRAY_DEFINE`
   * :c:macro:`K_THREAD_HW_SHADOW_STACK_ATTACH`
   * :c:macro:`k_thread_hw_shadow_stack_attach`
+
+* LVGL (Light and Versatile Graphics Library)
+
+  * :kconfig:option:`CONFIG_LV_Z_MEMORY_POOL_ZEPHYR_REGION`
+  * :kconfig:option:`CONFIG_LV_Z_MEMORY_POOL_ZEPHYR_REGION_NAME`
+  * :kconfig:option:`CONFIG_LV_Z_VDB_ZEPHYR_REGION`
+  * :kconfig:option:`CONFIG_LV_Z_VDB_ZEPHYR_REGION_NAME`
 
 * Logging:
 

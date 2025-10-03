@@ -674,9 +674,25 @@ Board/SoC configuration:
     - "57300"
   files:
     - soc/Kconfig*
+    - soc/CMakeLists.txt
     - boards/Kconfig*
+    - boards/CMakeLists.txt
   labels:
     - "area: Board/SoC configuration"
+
+Boards/SoCs:
+  status: odd fixes
+  files:
+    - boards/
+    - soc/
+    - dts/
+  labels:
+    - "area: Boards/SoCs"
+  description: >-
+    Grouping of all board and SoC platforms. For maintainership of
+    individual platforms, see the relevant platform section.
+    This area will have subgrouping of files for each platform with corresponding
+    collaborators.
 
 Bootloaders:
   status: odd fixes
@@ -737,6 +753,13 @@ Build system:
     - tests/misc/test_build/
     - tests/application_development/
     - samples/application_development/
+    - arch/archs.yml
+    - version.h.in
+    - scripts/schemas/arch-schema.yaml
+    - scripts/schemas/board-schema.yaml
+    - scripts/schemas/soc-schema.yaml
+    - scripts/list_shields.py
+    - scripts/snippets.py
   labels:
     - "area: Build System"
   tests:
@@ -860,23 +883,8 @@ Coding Guidelines:
     - jfischer-no
     - simhein
   files:
-    - .checkpatch.conf
-    - .clang-format
-    - .editorconfig
-    - .gitlint
-    - .yamllint
     - doc/contribute/guidelines.rst
     - doc/contribute/coding_guidelines/
-    - scripts/checkpatch.pl
-    - scripts/checkpatch/
-    - scripts/ci/check_compliance.py
-    - scripts/ci/guideline_check.py
-    - scripts/ci/pylintrc
-    - scripts/coccicheck
-    - scripts/coccinelle/
-    - scripts/gitlint/
-    - scripts/pylint/
-    - scripts/spelling.txt
   labels:
     - "area: Coding Guidelines"
 
@@ -887,6 +895,7 @@ Common Architecture Interface:
     - nashif
   files:
     - arch/Kconfig
+    - arch/CMakeLists.txt
     - include/zephyr/arch/
     - arch/common/
     - include/zephyr/arch/common/
@@ -1058,6 +1067,7 @@ Devicetree:
     - ^dts/bindings/[^,]+$
   files:
     - scripts/dts/
+    - dts/Kconfig
     - dts/common/
     - tests/lib/devicetree/
     - doc/build/dts/
@@ -1072,6 +1082,16 @@ Devicetree:
     - "area: Devicetree"
   tests:
     - libraries.devicetree
+
+Devicetree Bindings:
+  status: odd fixes
+  files-regex:
+    - ^dts/bindings/.*zephyr.*
+  files:
+    - dts/bindings/
+    - include/zephyr/dt-bindings/
+  labels:
+    - "area: Devicetree Bindings"
 
 Disk:
   status: maintained
@@ -1141,8 +1161,6 @@ Documentation:
     - doc/introduction/
     - doc/project/
     - doc/releases/
-    - doc/security/
-    - doc/safety/
     - README.rst
     - doc/substitutions.txt
     - doc/images/Zephyr-Kite-in-tree.png
@@ -1168,6 +1186,8 @@ Documentation Infrastructure:
     - carlescufi
     - nashif
   files:
+    - doc/requirements.in
+    - doc/requirements.txt
     - doc/_*/
     - doc/CMakeLists.txt
     - doc/conf.py
@@ -2015,6 +2035,26 @@ Documentation Infrastructure:
     - "area: Modem Drivers"
   tests:
     - drivers.modem
+
+"Drivers: Opamp":
+  status: maintained
+  maintainers:
+    - ZhaoxiangJin
+  collaborators:
+    - KozhinovAlexander
+  files:
+    - dts/bindings/opamp/
+    - drivers/opamp/
+    - include/zephyr/drivers/opamp.h
+    - include/zephyr/dt-bindings/opamp/
+    - samples/drivers/opamp/
+    - tests/drivers/build_all/opamp/
+    - tests/drivers/opamp/
+    - doc/hardware/peripherals/opamp.rst
+  labels:
+    - "area: Opamp"
+  tests:
+    - drivers.opamp
 
 "Drivers: PCI":
   status: maintained
@@ -3057,6 +3097,43 @@ Linker Scripts:
   tests:
     - linker
 
+Linters and Static Analyzers:
+  status: maintained
+  maintainers:
+    - keith-zephyr
+  collaborators:
+    - nashif
+    - kartben
+    - pdgendt
+  files:
+    - .codechecker.yml
+    - .codecov.yml
+    - .ruff-excludes.toml
+    - .ruff.toml
+    - REUSE.toml
+    - .yamllint
+    - scripts/ruff/gen_format_exclude.py
+    - scripts/ruff/gen_lint_exclude.py
+    - cmake/sca/
+    - .checkpatch.conf
+    - .clang-format
+    - .editorconfig
+    - .gitlint
+    - .yamllint
+    - scripts/checkpatch.pl
+    - scripts/checkpatch/
+    - scripts/ci/check_compliance.py
+    - scripts/ci/guideline_check.py
+    - scripts/ci/pylintrc
+    - scripts/coccicheck
+    - scripts/coccinelle/
+    - scripts/gitlint/
+    - scripts/pylint/
+    - scripts/spelling.txt
+  labels:
+    - "area: Linters"
+  description: >-
+    Linters and Static Analyzers used in Zephyr project.
 LiteX Platforms:
   status: maintained
   maintainers:
@@ -4383,6 +4460,16 @@ STM32 Wireless Platforms:
     STM32WB and STM32WBA SOCs, dts files and related drivers.
     STM32WB and STM32WBA development boards and ST bluetooth shields.
 
+Safety:
+  status: maintained
+  maintainers:
+    - tobiaskaestner
+    - parphane
+  files:
+    - doc/safety/
+  labels:
+    - "area: Safety"
+
 Samples:
   status: maintained
   maintainers:
@@ -4410,6 +4497,16 @@ Secure storage:
     - "area: Secure storage"
   tests:
     - psa.secure_storage
+
+Security:
+  status: maintained
+  maintainers:
+    - ceolin
+    - d3zd3z
+  files:
+    - doc/security/
+  labels:
+    - "area: Security"
 
 Seeed Studio Platforms:
   status: odd fixes
@@ -4776,6 +4873,15 @@ Testing with Renode:
     - boards/*/*/support/*.resc
   labels:
     - "area: Renode"
+
+Tests:
+  status: maintained
+  maintainers:
+    - nashif
+  files:
+    - tests/
+  labels:
+    - "area: Tests"
 
 "Toolchain ARC MWDT":
   status: maintained

@@ -286,6 +286,7 @@ hamamatsu	Hamamatsu Photonics K.K.
 hannstar	HannStar Display Corporation
 haoyu	Haoyu Microelectronic Co. Ltd.
 hardkernel	Hardkernel Co., Ltd
+hazard3	Hazard3 by Luke Wren
 heltec	Chengdu Heltec Automation Technology Co., Ltd.
 hideep	HiDeep Inc.
 himax	Himax Technologies, Inc.
@@ -491,6 +492,7 @@ okaya	Okaya Electric America, Inc.
 oki	Oki Electric Industry Co., Ltd.
 olimex	OLIMEX Ltd.
 olpc	One Laptop Per Child
+omron	OMRON Corporation
 onion	Onion Corporation
 onnn	ON Semiconductor Corp.
 ontat	On Tat Industrial Company
