@@ -72,12 +72,12 @@
 		};
 
 		red_led: led_r {
-			gpios = <&gpioc 15 (GPIO_ACTIVE_LOW | GPIO_PULL_DOWN)>;
+			gpios = <&gpioc 15 GPIO_ACTIVE_LOW>;
 			label = "LED_R";
 		};
 
 		green_led: led_g {
-			gpios = <&gpioc 14 (GPIO_ACTIVE_LOW | GPIO_PULL_DOWN)>;
+			gpios = <&gpioc 14 GPIO_ACTIVE_LOW>;
 			label = "LED_G";
 		};
 	};
@@ -101,10 +101,6 @@
 };
 
 &clk_lsi {
-	status = "okay";
-};
-
-&clk_lse {
 	status = "okay";
 };
 
@@ -222,6 +218,12 @@
 	pinctrl-names = "default";
 	cs-gpios = <&gpioa 15 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
 	clock-frequency = <DT_FREQ_M(20)>;
+	status = "okay";
+};
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK(APB1, 10)>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
 	status = "okay";
 };
 
