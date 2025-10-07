@@ -16,12 +16,14 @@
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
 		zephyr,display = &st7735r_160x80;
-    };
+	};
 
     aliases {
   		qdec0 = &qdec;
 		pwm1 = &pwm1;
 		tty3 = &usart3;
+		tim1 = &timers1;
+		adc2 = &adc2;
     };
 
 	mipi_dbi_st7735r_160x80 {
@@ -98,6 +100,14 @@
 			zephyr,code = <INPUT_KEY_2>;
 		};
 	};
+	
+	zephyr,user {
+		gpios = <&gpiob 0 GPIO_ACTIVE_HIGH>,
+				<&gpioa 1 GPIO_ACTIVE_HIGH>,
+				<&gpioa 2 GPIO_ACTIVE_HIGH>,
+				<&gpioa 0 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
 };
 
 &clk_lsi {
@@ -134,13 +144,14 @@
 &adc2 {
 	st,adc-prescaler = <4>;
 	st,adc-clock-source = "SYNC";
-	pinctrl-0 = <&adc2_in3_pa6 
-				 &adc2_in4_pa7 
-				 &adc2_in5_pc4 
-				 &adc2_in11_pc5
-				 &adc2_in12_pb2
-				 &adc2_in13_pa5
-				 &adc2_in17_pa4>;
+	st,adc-oversampler = "OVERSAMPLER_MINIMAL";
+	pinctrl-0 = <&adc2_in3_pa6
+			&adc2_in4_pa7
+			&adc2_in5_pc4
+			&adc2_in11_pc5
+			&adc2_in12_pb2
+			&adc2_in13_pa5
+			&adc2_in17_pa4>;
 	pinctrl-names = "default";
 	status = "okay";
 
@@ -227,6 +238,18 @@
 	status = "okay";
 };
 
+&dma1 {
+	status = "okay";
+};
+
+&dma2 {
+	status = "okay";
+};
+
+&dmamux1 {
+	status = "okay";
+};
+
 &flash0 {
 	partitions {
 		compatible = "fixed-partitions";
@@ -257,15 +280,15 @@
 };
 
 &timers1 {
-	st,prescaler = <0>;
-	st,countermode = <STM32_TIM_COUNTERMODE_CENTER_DOWN>;
-	status = "okay";
+    st,prescaler = <8>;
+    st,countermode = <STM32_TIM_COUNTERMODE_CENTER_UP_DOWN>;
+    status = "okay";
 
-	pwm1: pwm {
-		pinctrl-0 = <&tim1_ch1_pc0 &tim1_ch2_pc1 &tim1_ch3_pc2 &tim1_ch4_pc3>;
-		pinctrl-names = "default";
-		status = "okay";
-	};
+    pwm1: pwm {
+        pinctrl-0 = <&tim1_ch1_pc0 &tim1_ch2_pc1 &tim1_ch3_pc2 &tim1_ch4_pc3>;
+        pinctrl-names = "default";
+        status = "okay";
+    };
 };
 
 &timers3 {
