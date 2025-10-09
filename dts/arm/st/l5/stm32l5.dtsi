@@ -2,12 +2,13 @@
  * Copyright (c) 2021 The Chromium OS Authors
  * Copyright (c) 2020 Linaro Limited
  * Copyright (c) 2024 STMicroelectronics
+ * Copyright (c) 2025 Mario Paja
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <arm/armv8-m.dtsi>
-#include <zephyr/dt-bindings/clock/stm32l4_clock.h>
+#include <zephyr/dt-bindings/clock/stm32l5_clock.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
 #include <zephyr/dt-bindings/pwm/pwm.h>
@@ -17,6 +18,7 @@
 #include <zephyr/dt-bindings/reset/stm32g4_l4_5_reset.h>
 #include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/flash_controller/ospi.h>
+#include <zephyr/dt-bindings/sensor/qdec_stm32.h>
 #include <freq.h>
 
 / {
@@ -118,6 +120,12 @@
 		pll: pll {
 			#clock-cells = <0>;
 			compatible = "st,stm32l4-pll-clock";
+			status = "disabled";
+		};
+
+		pllsai1: pllsai1 {
+			#clock-cells = <0>;
+			compatible = "st,stm32l4-pllsai-clock";
 			status = "disabled";
 		};
 	};
@@ -485,6 +493,12 @@
 				status = "disabled";
 				#pwm-cells = <3>;
 			};
+
+			qdec {
+				compatible = "st,stm32-qdec";
+				st,input-filter-level = <NO_FILTER>;
+				status = "disabled";
+			};
 		};
 
 		timers2: timers@40000000 {
@@ -506,6 +520,12 @@
 
 			counter {
 				compatible = "st,stm32-counter";
+				status = "disabled";
+			};
+
+			qdec {
+				compatible = "st,stm32-qdec";
+				st,input-filter-level = <NO_FILTER>;
 				status = "disabled";
 			};
 		};
@@ -531,6 +551,12 @@
 				compatible = "st,stm32-counter";
 				status = "disabled";
 			};
+
+			qdec {
+				compatible = "st,stm32-qdec";
+				st,input-filter-level = <NO_FILTER>;
+				status = "disabled";
+			};
 		};
 
 		timers4: timers@40000800 {
@@ -552,6 +578,12 @@
 
 			counter {
 				compatible = "st,stm32-counter";
+				status = "disabled";
+			};
+
+			qdec {
+				compatible = "st,stm32-qdec";
+				st,input-filter-level = <NO_FILTER>;
 				status = "disabled";
 			};
 		};
@@ -577,6 +609,12 @@
 				compatible = "st,stm32-counter";
 				status = "disabled";
 			};
+
+			qdec {
+				compatible = "st,stm32-qdec";
+				st,input-filter-level = <NO_FILTER>;
+				status = "disabled";
+			};
 		};
 
 		timers8: timers@40013400 {
@@ -594,6 +632,12 @@
 				compatible = "st,stm32-pwm";
 				status = "disabled";
 				#pwm-cells = <3>;
+			};
+
+			qdec {
+				compatible = "st,stm32-qdec";
+				st,input-filter-level = <NO_FILTER>;
+				status = "disabled";
 			};
 		};
 
@@ -735,6 +779,30 @@
 			compatible = "st,stm32-fmc";
 			reg = <0x44020000 0x400>;
 			clocks = <&rcc STM32_CLOCK(AHB3, 0)>;
+			status = "disabled";
+		};
+
+		sai1_a: sai1@40015404 {
+			compatible = "st,stm32-sai";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x40015404 0x20>;
+			clocks = <&rcc STM32_CLOCK(APB2, 21)>,
+				 <&rcc STM32_SRC_PLLSAI1_P SAI1_SEL(0)>;
+			dmas = <&dma1 1 37 (STM32_DMA_MODE_NORMAL | STM32_DMA_PRIORITY_HIGH |
+					     STM32_DMA_16BITS)>;
+			status = "disabled";
+		};
+
+		sai1_b: sai1@40015424 {
+			compatible = "st,stm32-sai";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x40015424 0x20>;
+			clocks = <&rcc STM32_CLOCK(APB2, 21)>,
+				 <&rcc STM32_SRC_PLLSAI1_P SAI1_SEL(0)>;
+			dmas = <&dma1 2 38 (STM32_DMA_MODE_NORMAL | STM32_DMA_PRIORITY_HIGH |
+					     STM32_DMA_16BITS)>;
 			status = "disabled";
 		};
 	};
