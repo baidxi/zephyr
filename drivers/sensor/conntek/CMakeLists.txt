@@ -1,0 +1,1 @@
+add_subdirectory_ifdef(CONFIG_KTH7823 kth7823)

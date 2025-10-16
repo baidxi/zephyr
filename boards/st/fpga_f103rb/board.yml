@@ -1,6 +1,0 @@
-board:
-  name: fpga_f103rb
-  full_name: FPGA F103RB
-  vendor: st
-  socs:
-    - name: stm32f103xb

@@ -34,12 +34,79 @@ struct qdec_stm32_dev_cfg {
 	bool is_input_polarity_inverted;
 	uint8_t input_filtering_level;
 	uint32_t counts_per_revolution;
+#if IS_ENABLED(CONFIG_QDEC_STM32_TRIGGER)
+	void (*irq_config)(const struct device *dev);
+	void (*irq_connect)(void);
+	int irq;
+#endif
 };
 
 /* Device run time data */
 struct qdec_stm32_dev_data {
 	uint32_t position;
+#if IS_ENABLED(CONFIG_QDEC_STM32_TRIGGER)
+	const struct device *dev;
+	const struct sensor_trigger *trig;
+	sensor_trigger_handler_t handler;
+	struct k_work work;
+#endif
 };
+
+#if IS_ENABLED(CONFIG_QDEC_STM32_TRIGGER)
+
+static void qdec_stm32_work(struct k_work *work)
+{
+	struct qdec_stm32_dev_data *data = CONTAINER_OF(work, struct qdec_stm32_dev_data, work);
+
+	if (data->handler)
+		data->handler(data->dev, data->trig);
+}
+
+static void qdec_stm32_isr(const struct device *dev)
+{
+	const struct qdec_stm32_dev_cfg *config = dev->config;
+	struct qdec_stm32_dev_data *data = dev->data;
+
+	TIM_TypeDef *timer = config->timer_inst;
+
+	if (LL_TIM_IsActiveFlag_UPDATE(timer) && LL_TIM_IsEnabledIT_UPDATE(timer)) {
+		LL_TIM_ClearFlag_UPDATE(timer);
+
+		/*
+		 * In encoder mode, CCxIF flags might be set by hardware on edges.
+		 * Even if CCxIE is not set, it's safer to clear them to avoid
+		 * potential issues where the interrupt is not properly acknowledged.
+		 */
+		LL_TIM_ClearFlag_CC1(timer);
+		LL_TIM_ClearFlag_CC2(timer);
+
+		k_work_submit(&data->work);
+	}
+}
+
+static int qdec_stm32_trigger_set(const struct device *dev, const struct sensor_trigger *trig, sensor_trigger_handler_t handler)
+{
+	const struct qdec_stm32_dev_cfg *config = dev->config;
+	struct qdec_stm32_dev_data *data = dev->data;
+	TIM_TypeDef *timer = config->timer_inst;
+
+	if (trig->type != SENSOR_TRIG_DATA_READY)
+		return -ENOTSUP;
+
+	LL_TIM_DisableIT_UPDATE(timer);
+
+	data->trig = trig;
+	data->handler = handler;
+
+	if (handler == NULL)
+		return 0;
+
+	LL_TIM_EnableIT_UPDATE(timer);
+
+	return 0;
+}
+
+#endif
 
 static int qdec_stm32_fetch(const struct device *dev, enum sensor_channel chan)
 {
@@ -94,6 +161,7 @@ static void qdec_stm32_initialize_channel(const struct device *dev, uint32_t ll_
 static int qdec_stm32_initialize(const struct device *dev)
 {
 	const struct qdec_stm32_dev_cfg *const dev_cfg = dev->config;
+	struct qdec_stm32_dev_data *data = dev->data;
 	int retval;
 	uint32_t max_counter_value;
 
@@ -137,18 +205,43 @@ static int qdec_stm32_initialize(const struct device *dev)
 
 	LL_TIM_EnableCounter(dev_cfg->timer_inst);
 
+#if IS_ENABLED(CONFIG_QDEC_STM32_TRIGGER)
+	data->dev = dev;
+	k_work_init(&data->work, qdec_stm32_work);
+	dev_cfg->irq_config(dev);
+#endif
+
 	return 0;
 }
 
 static DEVICE_API(sensor, qdec_stm32_driver_api) = {
 	.sample_fetch = qdec_stm32_fetch,
 	.channel_get = qdec_stm32_get,
+#if IS_ENABLED(CONFIG_QDEC_STM32_TRIGGER)
+	.trigger_set = qdec_stm32_trigger_set,
+#endif
 };
+
+#if IS_ENABLED(CONFIG_QDEC_STM32_TRIGGER)
+static void qdec_stm32_irq_config(const struct device *dev)
+{
+	const struct qdec_stm32_dev_cfg *config = dev->config;
+
+	config->irq_connect();
+	irq_enable(config->irq);
+}
+#endif
 
 #define QDEC_STM32_INIT(n)                                                                         \
 	BUILD_ASSERT(!(DT_INST_PROP(n, st_encoder_mode) & ~TIM_SMCR_SMS),                          \
 		     "Encoder mode is not supported by this MCU");                                 \
-                                                                                                   \
+                                                                                            \
+	IF_ENABLED(CONFIG_QDEC_STM32_TRIGGER,	(												\
+		static void qdec_stm32_irq_connect_##n(void)										\
+		{																					\
+			IRQ_CONNECT(DT_IRQN(DT_INST_PARENT(n)), DT_IRQ_BY_IDX(DT_INST_PARENT(n), 0, priority), qdec_stm32_isr, DEVICE_DT_INST_GET(n), 0); \
+		}																					\
+	));																						\
 	PINCTRL_DT_INST_DEFINE(n);                                                                 \
 	static const struct qdec_stm32_dev_cfg qdec##n##_stm32_config = {                          \
 		.pin_config = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                   \
@@ -159,6 +252,11 @@ static DEVICE_API(sensor, qdec_stm32_driver_api) = {
 		.is_input_polarity_inverted = DT_INST_PROP(n, st_input_polarity_inverted),         \
 		.input_filtering_level = DT_INST_PROP(n, st_input_filter_level),                   \
 		.counts_per_revolution = DT_INST_PROP(n, st_counts_per_revolution),                \
+		IF_ENABLED(CONFIG_QDEC_STM32_TRIGGER,	(											\
+			.irq_config = qdec_stm32_irq_config,										\
+			.irq_connect = qdec_stm32_irq_connect_##n,  									\
+			.irq = DT_IRQN(DT_INST_PARENT(n)),												\
+		))																				\
 	};                                                                                         \
                                                                                                    \
 	static struct qdec_stm32_dev_data qdec##n##_stm32_data;                                    \

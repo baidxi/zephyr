@@ -1,0 +1,54 @@
+config KTH7823
+	bool "KTH7823 Hall-effect angle sensor"
+	depends on DT_HAS_CONNTEK_KTH7823_ENABLED
+	depends on SPI
+	help
+	  Enable driver for the KTH7823 Hall-effect angle sensor.
+
+if KTH7823
+
+choice KTH7823_INTERFACE
+	prompt "Sensor Interface"
+	default KTH7823_INTERFACE_SPI
+	help
+	  Select the interface used to read the angle from the sensor.
+
+config KTH7823_INTERFACE_SPI
+	bool "SPI"
+	help
+	  Use the SPI interface to read the angle.
+
+config KTH7823_INTERFACE_SSI
+	bool "SSI"
+	depends on GPIO
+	help
+	  Use the SSI interface to read the angle.
+
+config KTH7823_INTERFACE_PWM
+	bool "PWM"
+	depends on PWM
+	help
+	  Use the PWM interface to read the angle.
+
+config KTH7823_INTERFACE_ABZ
+	bool "ABZ"
+	depends on DT_HAS_GPIO_QDEC_ENABLED
+	help
+	  Select this if you intend to use the ABZ incremental encoder
+	  output as the primary source of angle information.
+	  Note that the standard sensor_sample_fetch() API is NOT
+	  supported for this mode. You must use a separate QDEC driver
+	  instance that takes the a-gpios, b-gpios, and z-gpios
+	  properties from this device's devicetree node. This driver
+	  will configure the GPIOs as inputs for the QDEC to use.
+
+endchoice
+
+config KTH7823_ABZ
+	bool "Enable ABZ interface configuration (GPIO QDEC)"
+	default y if KTH7823_INTERFACE_ABZ
+	help
+	  Enable configuration of the ABZ incremental encoder interface.
+	  This is independent of the reading interface and is always done via SPI.
+
+endif # KTH7823

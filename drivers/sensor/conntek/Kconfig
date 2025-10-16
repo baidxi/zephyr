@@ -1,0 +1,1 @@
+source "drivers/sensor/conntek/kth7823/Kconfig"

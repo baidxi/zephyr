@@ -1,0 +1,88 @@
+# Copyright (c) 2024 Conntek
+# SPDX-License-Identifier: Apache-2.0
+
+description: KTH7823 Hall-effect angle sensor
+
+compatible: "conntek,kth7823"
+
+include: spi-device.yaml
+
+properties:
+  abz-resolution:
+    type: int
+    required: false
+    default: 1024
+    description: |
+      ABZ resolution in pulses per revolution (PPR). Valid range is 1 to 1024.
+      This property is only used when CONFIG_KTH7823_ABZ is enabled.
+
+  rotation-inverse:
+    type: boolean
+    required: false
+    description: |
+      If present, inverts the rotation direction. Corresponds to the RD register.
+
+  zero-offset:
+    type: int
+    required: false
+    description: |
+      16-bit value for the zero position offset. Corresponds to the Z register.
+
+  mag-high-threshold:
+    type: int
+    required: false
+    description: |
+      Magnetic field high strength alarm threshold. Valid range 0-7.
+      See datasheet table 13 for mapping to mT values.
+
+  mag-low-threshold:
+    type: int
+    required: false
+    description: |
+      Magnetic field low strength alarm threshold. Valid range 0-7.
+      See datasheet table 13 for mapping to mT values.
+
+  ssck-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      GPIO for the SSI clock signal. This property should only be provided
+      when the SSI interface is used for reading angle data
+      (CONFIG_KTH7823_INTERFACE_SSI=y).
+
+  ssd-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      GPIO for the SSI data signal. This property should only be provided
+      when the SSI interface is used for reading angle data
+      (CONFIG_KTH7823_INTERFACE_SSI=y).
+
+  pwms:
+    type: phandle-array
+    required: false
+    description: |
+      PWM specifier for the PWM input. This property should only be provided
+      when the PWM interface is used for reading angle data
+      (CONFIG_KTH7823_INTERFACE_PWM=y).
+
+  a-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      GPIO for the ABZ 'A' signal. Required when ABZ configuration is enabled
+      (CONFIG_KTH7823_ABZ=y).
+
+  b-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      GPIO for the ABZ 'B' signal. Required when ABZ configuration is enabled
+      (CONFIG_KTH7823_ABZ=y).
+
+  z-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      GPIO for the ABZ 'Z' signal. Required when ABZ configuration is enabled
+      (CONFIG_KTH7823_ABZ=y).

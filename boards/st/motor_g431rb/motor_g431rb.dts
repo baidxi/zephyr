@@ -19,7 +19,7 @@
 	};
 
     aliases {
-  		qdec0 = &qdec;
+  		qdec0 = &qdec0;
 		pwm1 = &pwm1;
 		tty3 = &usart3;
 		tim1 = &timers1;
@@ -42,10 +42,10 @@
 			reg = <0>;
 			width = <160>;
 			height = <80>;
-			inversion-on;
+			// inversion-on;
 			rgb-is-inverted;
-			x-offset = <1>;
-			y-offset = <26>;
+			x-offset = <0>;
+			y-offset = <24>;
 			pwctr1 = [AB 0B 04];
 			pwctr2 = [C5];
 			pwctr3 = [0D 00];
@@ -84,7 +84,7 @@
 		};
 	};
 
-	gpio_keys {
+	buttons:buttons {
 		compatible = "gpio-keys";
 		status = "okay";
 
@@ -280,7 +280,7 @@
 };
 
 &timers1 {
-    st,prescaler = <8>;
+    st,prescaler = <0>;
     st,countermode = <STM32_TIM_COUNTERMODE_CENTER_UP_DOWN>;
     status = "okay";
 
@@ -300,8 +300,7 @@
 		status = "okay";
 	};
 
-	qdec: qdec {
-		compatible = "st,stm32-qdec";
+	qdec0: qdec {
 		pinctrl-0 = <&tim3_ch1_pb4 &tim3_ch2_pb5>;
 		pinctrl-names = "default";
 		st,encoder-mode = <3>;
