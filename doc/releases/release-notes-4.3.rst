@@ -60,6 +60,8 @@ Removed APIs and options
 * ``bt_le_set_auto_conn``
 * ``CONFIG_BT_BUF_ACL_RX_COUNT``
 * ``ok`` enum value has now been removed completely from ``base.yaml`` binding ``status`` property in devicetree.
+* STM32 LPTIM clock source selection through Kconfig was removed. Device Tree must now be used instead.
+  Affected Kconfig symbols: ``CONFIG_STM32_LPTIM_CLOCK_LSI`` / ``CONFIG_STM32_LPTIM_CLOCK_LSI``
 
 Deprecated APIs and options
 ===========================
@@ -143,6 +145,10 @@ New APIs and options
   * Introduced experimental dynamic CPU frequency scaling subsystem
 
     * :kconfig:option:`CONFIG_CPU_FREQ`
+
+* Crypto
+
+  * :kconfig:option:`CONFIG_MBEDTLS_PSA_CRYPTO_BUILTIN_KEYS`
 
 * Display
 
@@ -362,6 +368,15 @@ Libraries / Subsystems
     via :kconfig:option:`CONFIG_LOG_RATELIMIT`. When rate limiting is disabled, the behavior can be controlled
     via :kconfig:option:`CONFIG_LOG_RATELIMIT_FALLBACK` to either log all messages or drop them completely.
     For more details, see :ref:`logging_ratelimited`.
+
+* Mbed TLS
+
+  * Kconfig :kconfig:option:`CONFIG_PSA_CRYPTO` is added to simplify the enablement of a PSA
+    Crypto API provider. This is TF-M if :kconfig:option:`CONFIG_BUILD_WITH_TFM` is enabled,
+    or Mbed TLS otherwise. :kconfig:option:`CONFIG_PSA_CRYPTO_PROVIDER_TFM` is set in the former
+    case while :kconfig:option:`CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS` is set in the latter.
+    :kconfig:option:`CONFIG_PSA_CRYPTO_PROVIDER_CUSTOM` is also added to allow end users to
+    provide a custom solution.
 
 * Secure storage
 

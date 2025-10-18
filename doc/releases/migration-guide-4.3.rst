@@ -67,6 +67,14 @@ ADC
 * ``iadc_gecko.c`` driver is replaced by ``adc_silabs_iadc.c``.
   :dtcompatible:`silabs,gecko-iadc` is replaced by :dtcompatible:`silabs,iadc`.
 
+Clock Control
+=============
+
+* :kconfig:option:`CONFIG_CLOCK_STM32_HSE_CLOCK` is no longer user-configurable. Its value is now
+  always taken from the ``clock-frequency`` property of ``&clk_hse`` DT node, but only if the node
+  is enabled (otherwise, the symbol is not defined). This change should only affect STM32 MPU-based
+  platforms and aligns them with existing practice from STM32 MCU platforms.
+
 Comparator
 ==========
 
@@ -77,6 +85,13 @@ Comparator
   :c:macro:`NRF_COMP_AIN_VDD_DIV2` represents internal reference VDD/2,
   and :c:macro:`NRF_COMP_AIN_VDDH_DIV5` represents VDDH/5.
   The old ``string`` properties type is deprecated.
+
+DMA
+===
+
+* DMA no longer implements user mode syscalls as part of its API. The syscalls were determined to be
+  too broadly defined in access and impossible to implement the syscall parameter verification step
+  in another.
 
 MFD
 ===
@@ -182,6 +197,13 @@ Bluetooth HCI
 
 * The deprecated ``ipm`` value was removed from ``bt-hci-bus`` devicetree property.
   ``ipc`` should be used instead.
+
+Bluetooth Mesh
+==============
+
+* Kconfigs ``CONFIG_BT_MESH_USES_MBEDTLS_PSA`` and ``CONFIG_BT_MESH_USES_TFM_PSA`` have
+  been removed. The selection of the PSA Crypto provider is now automatically controlled
+  by Kconfig :kconfig:option:`CONFIG_PSA_CRYPTO`.
 
 Ethernet
 ========
