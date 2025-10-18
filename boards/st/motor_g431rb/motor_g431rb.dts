@@ -228,6 +228,9 @@
 	pinctrl-names = "default";
 	cs-gpios = <&gpioa 15 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
 	clock-frequency = <DT_FREQ_M(20)>;
+	dmas = <&dmamux1 1 15 (STM32_DMA_PERIPH_TX | STM32_DMA_PRIORITY_LOW)>,
+			<&dmamux1 2 14 (STM32_DMA_PERIPH_RX | STM32_DMA_PRIORITY_LOW)>;
+	dma-names = "tx", "rx";
 	status = "okay";
 };
 
