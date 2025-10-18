@@ -59,7 +59,7 @@
 			gamctrp1 = [07 0E 08 07 10 07 02 07 09 0F 25 36 00 08 04 10];
 			gamctrn1 = [0A 0D 08 07 0F 07 02 07 09 0F 25 35 00 09 04 10];
 			colmod = <5>;
-			madctl = <120>;
+			madctl = <0xa0>;
 			caset = [00 01 00 a0];
 			raset = [00 1a 00 69];
 		};
@@ -144,7 +144,7 @@
 &adc2 {
 	st,adc-prescaler = <4>;
 	st,adc-clock-source = "SYNC";
-	st,adc-oversampler = "OVERSAMPLER_MINIMAL";
+	st,adc-oversampler = "minimal";
 	pinctrl-0 = <&adc2_in3_pa6
 			&adc2_in4_pa7
 			&adc2_in5_pc4
@@ -224,10 +224,9 @@
 };
 
 &spi3 {
-	/* SPI3 on the ST Morpho Connector CN7 pins 17, 1, 2, 3*/
 	pinctrl-0 = <&spi3_sck_pc10 &spi3_mosi_pc12>;
 	pinctrl-names = "default";
-	cs-gpios = <&gpioa 15 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+	cs-gpios = <&gpioa 15 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
 	clock-frequency = <DT_FREQ_M(20)>;
 	status = "okay";
 };
