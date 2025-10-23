@@ -17,6 +17,7 @@
 #include <zephyr/dt-bindings/reset/stm32wb_l_reset.h>
 #include <zephyr/dt-bindings/power/stm32_pwr.h>
 #include <freq.h>
+#include <mem.h>
 
 / {
 	chosen {
@@ -150,7 +151,7 @@
 			compatible = "st,stm32-exti";
 			interrupt-controller;
 			#interrupt-cells = <1>;
-			#address-cells = <1>;
+			#address-cells = <0>;
 			reg = <0x58000800 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB0, 8)>;
 			num-lines = <64>;

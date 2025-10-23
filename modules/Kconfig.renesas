@@ -253,6 +253,11 @@ config USE_RA_FSP_IPC
 	help
 	  Enable RA FSP IPC driver
 
+config USE_RA_FSP_RTC
+	bool
+	help
+	  Enable RA FSP RTC driver
+
 endif # HAS_RENESAS_RA_FSP
 
 if HAS_RENESAS_RZ_FSP
@@ -297,10 +302,15 @@ config USE_RZ_FSP_EXT_IRQ
 	help
 	  Enable RZ FSP External IRQ driver
 
-config USE_RZ_FSP_DMA
+config USE_RZ_FSP_DMAC
 	bool
 	help
-	  Enable RZ FSP DMA driver
+	  Enable RZ FSP DMAC driver
+
+config USE_RZ_FSP_DMAC_B
+	bool
+	help
+	  Enable RZ FSP DMAC_B driver
 
 config USE_RZ_FSP_MHU
 	bool
@@ -342,10 +352,25 @@ config USE_RZ_FSP_CMTW
 	help
 	  Enable RZ FSP CMTW driver
 
+config USE_RZ_FSP_SPI
+	bool
+	help
+	  Enable RZ FSP SPI driver
+
 config USE_RZ_FSP_WDT
 	bool
 	help
 	  Enable RZ FSP WDT driver
+
+config USE_RZ_FSP_QSPI_XSPI
+	bool
+	help
+	  Enable RZ FSP QSPI XSPI driver
+
+config USE_RZ_FSP_QSPI_SPIBSC
+	bool
+	help
+	  Enable RZ FSP QSPI SPIBSC driver
 
 endif
 
@@ -405,5 +430,12 @@ config USE_RX_RDP_LVD
 	bool
 	help
 	  Enable RX RDP LVD driver
+
+config USE_RX_RDP_LPC
+	bool
+	default y
+	depends on PM
+	help
+	  Enable RX RDP LPC driver
 
 endif # HAS_RENESAS_RX_RDP

@@ -19,6 +19,7 @@
 #include <zephyr/dt-bindings/flash_controller/xspi.h>
 #include <zephyr/dt-bindings/dma/stm32_dma.h>
 #include <freq.h>
+#include <mem.h>
 
 /*
  * STM32H7RS line contains has many common peripherals with STM32H7.
@@ -60,6 +61,7 @@
 		reg = <0x30000000 DT_SIZE_K(16)>;
 		compatible = "zephyr,memory-region", "mmio-sram";
 		zephyr,memory-region = "SRAM1";
+		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_RAM)>;
 	};
 
 	/* System data RAM accessible over AHB bus: SRAM2 in D2 domain */
@@ -67,6 +69,11 @@
 		compatible = "zephyr,memory-region", "mmio-sram";
 		reg = <0x30004000 DT_SIZE_K(16)>;
 		zephyr,memory-region = "SRAM2";
+		/* Disable SRAM2 by default to avoid unintended access.
+		 * To enable it, explicitly define zephyr,memory-attr
+		 * to configure MPU attributes.
+		 */
+		status = "disabled";
 	};
 
 	dtcm: memory@20000000 {
@@ -209,7 +216,7 @@
 			compatible = "st,stm32h7rs-exti", "st,stm32-exti";
 			interrupt-controller;
 			#interrupt-cells = <1>;
-			#address-cells = <1>;
+			#address-cells = <0>;
 			reg = <0x58000000 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB4, 1)>;
 			/* SBS for interrupt */

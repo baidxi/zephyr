@@ -15,6 +15,7 @@
 #include <zephyr/dt-bindings/i2c/i2c.h>
 #include <zephyr/dt-bindings/reset/stm32u0_reset.h>
 #include <freq.h>
+#include <mem.h>
 
 / {
 	chosen {
@@ -148,7 +149,7 @@
 			compatible = "st,stm32g0-exti", "st,stm32-exti";
 			interrupt-controller;
 			#interrupt-cells = <1>;
-			#address-cells = <1>;
+			#address-cells = <0>;
 			reg = <0x40021800 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB1_2, 0)>;
 			num-lines = <32>;

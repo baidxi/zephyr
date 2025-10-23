@@ -51,6 +51,15 @@ Base Libraries
   may include :zephyr_file:`include/zephyr/posix/posix_limits.h` for Zephyr's definitions. Some
   runtime-invariant values may need to be queried via :c:func:`sysconf`.
 
+* The number of file descriptor table size and its availability is now determined by
+  a ``ZVFS_OPEN_SIZE`` define instead of the :kconfig:option:`CONFIG_ZVFS_OPEN_MAX`
+  Kconfig option. Subsystems can specify their own custom file descriptor table size
+  requirements by specifying Kconfig options with the prefix ``CONFIG_ZVFS_OPEN_ADD_SIZE_``.
+  The old Kconfig option still exists, but will be overridden if the custom requirements
+  are larger. To force the old Kconfig option to be used, even when its value is less
+  than the indicated custom requirements, a new :kconfig:option:`CONFIG_ZVFS_OPEN_IGNORE_MIN`
+  option has been introduced (which defaults being disabled).
+
 Boards
 ******
 
@@ -65,6 +74,16 @@ Boards
 * NXP ``frdm_mcxa276`` is renamed to ``frdm_mcxa266``.
 
 * Panasonic ``panb511evb`` is renamed to ``panb611evb``.
+
+* STM32 boards OpenOCD configuration files have been changed to support latest OpenOCD versions
+  (> v0.12.0) in which the HLA/SWD transport has been deprecated (see
+  https://review.openocd.org/c/openocd/+/8523 and commit
+  https://sourceforge.net/p/openocd/code/ci/34ec5536c0ba3315bc5a841244bbf70141ccfbb4/).
+  Issues may be encountered when connecting to an ST-Link adapter running firmware prior
+  v2j24 which do not support the new transport. In this case, the ST-Link firmware should
+  be upgraded or, if not possible, the OpenOCD configuration script should be changed to
+  source "interface/stlink-hla.cfg" and select the "hla_swd" interface explicitly.
+  Backward compatibility with OpenOCD v0.12.0 or older is maintained.
 
 Device Drivers and Devicetree
 *****************************
@@ -170,10 +189,13 @@ Bluetooth
 Bluetooth Controller
 ====================
 
-* The following Kconfig option have been renamed:
+* The following have been renamed:
 
     * :kconfig:option:`CONFIG_BT_CTRL_ADV_ADI_IN_SCAN_RSP` to
       :kconfig:option:`CONFIG_BT_CTLR_ADV_ADI_IN_SCAN_RSP`
+    * :c:struct:`bt_hci_vs_fata_error_cpu_data_cortex_m` to
+      :c:struct:`bt_hci_vs_fatal_error_cpu_data_cortex_m` and now contains the program counter
+      value.
 
    * :c:func:`bt_ctlr_set_public_addr` is deprecated. To set the public Bluetooth device address,
      sending a vendor specific HCI command with :c:struct:`bt_hci_cp_vs_write_bd_addr` can be used.
@@ -215,6 +237,15 @@ Bluetooth Mesh
   been removed. The selection of the PSA Crypto provider is now automatically controlled
   by Kconfig :kconfig:option:`CONFIG_PSA_CRYPTO`.
 
+Bluetooth Host
+==============
+
+* :kconfig:option:`CONFIG_BT_FIXED_PASSKEY` has been deprecated. Instead, the application can
+  provide passkeys for pairing using the :c:member:`bt_conn_auth_cb.app_passkey` callback, which is
+  available when :kconfig:option:`CONFIG_BT_APP_PASSKEY` is enabled. The application can return the
+  passkey for pairing, or :c:macro:`BT_PASSKEY_RAND` for the Host to generate a random passkey
+  instead.
+
 Ethernet
 ========
 
@@ -232,6 +263,11 @@ Ethernet
       ``disable-rx-checksum-offload`` which now actively disables it.
     * Replaced devicetree property ``tx-checksum-offload`` which enabled TX checksum offloading
       ``disable-tx-checksum-offload`` which now actively disables it.
+
+* The Xilinx GEM Ethernet driver (:dtcompatible:`xlnx,gem`) now obtains the AMBA AHB data bus
+  width matching the current target SoC (either Zynq-7000 or ZynqMP) from a design configuration
+  register at run-time, making the devicetree property ``amba-ahb-dbus-width`` obsolete, which
+  has therefore been removed.
 
 Power management
 ****************
@@ -320,6 +356,13 @@ Cellular
  * :c:enum:`cellular_access_technology` values have been redefined to align with 3GPP TS 27.007.
  * :c:enum:`cellular_registration_status` values have been extended to align with 3GPP TS 27.007.
 
+Crypto
+======
+
+* Hashing operations now require a constant input in the :c:struct:`hash_pkt`.
+  This shouldn't affect any existing code, unless an out-of-tree hashing backend actually
+  performs that operation in-place (see :github:`94218`)
+
 Flash Map
 =========
 
@@ -345,6 +388,10 @@ MCUmgr
   revision, which now includes the SoC and board variant. The old behaviour has been deprecated,
   but can still be used by enabling
   :kconfig:option:`CONFIG_MCUMGR_GRP_OS_INFO_HARDWARE_INFO_SHORT_HARDWARE_PLATFORM`.
+
+* Support for legacy Mbed TLS hash crypto is removed and only PSA Crypto API is used.
+  :kconfig:option:`CONFIG_MCUMGR_GRP_FS_HASH_SHA256` automatically enables Mbed TLS and its
+  PSA Crypto implementation if TF-M is not enabled in the build.
 
 RTIO
 ====
@@ -374,6 +421,13 @@ Shell
   and :kconfig:option:`SHELL_MQTT_TOPIC_TX_ID`. This allows keeping the previous topics for backward
   compatibility.
   (:github:`92677`).
+
+UpdateHub
+=========
+
+* Legacy Mbed TLS as an option for crypto support has been removed and PSA Crypto is now used in all
+  cases. :kconfig:option:`CONFIG_UPDATEHUB` will automatically enable the Mbed TLS implementation of
+  PSA Crypto if TF-M is not enabled in the build.
 
 .. zephyr-keep-sorted-stop
 

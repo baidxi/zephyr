@@ -1391,11 +1391,15 @@ static void modem_cellular_carrier_on_event_handler(struct modem_cellular_data *
 {
 	const struct modem_cellular_config *config =
 		(const struct modem_cellular_config *)data->dev->config;
+	struct cellular_evt_modem_comms_check_result result;
 
 	switch (evt) {
 	case MODEM_CELLULAR_EVENT_SCRIPT_SUCCESS:
 	case MODEM_CELLULAR_EVENT_SCRIPT_FAILED:
+		result.success = evt == MODEM_CELLULAR_EVENT_SCRIPT_SUCCESS;
+
 		modem_cellular_start_timer(data, MODEM_CELLULAR_PERIODIC_SCRIPT_TIMEOUT);
+		modem_cellular_emit_event(data, CELLULAR_EVENT_MODEM_COMMS_CHECK_RESULT, &result);
 		break;
 
 	case MODEM_CELLULAR_EVENT_TIMEOUT:
@@ -3005,8 +3009,8 @@ MODEM_CHAT_SCRIPT_DEFINE(sqn_gm02s_periodic_chat_script,
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(inst, modem_cellular_init, PM_DEVICE_DT_INST_GET(inst),              \
 			      &MODEM_CELLULAR_INST_NAME(data, inst),                               \
-			      &MODEM_CELLULAR_INST_NAME(config, inst), POST_KERNEL, 99,            \
-			      &modem_cellular_api);
+			      &MODEM_CELLULAR_INST_NAME(config, inst), POST_KERNEL,                \
+			      CONFIG_MODEM_CELLULAR_INIT_PRIORITY, &modem_cellular_api);
 
 #define MODEM_CELLULAR_DEVICE_QUECTEL_BG9X(inst)                                                   \
 	MODEM_DT_INST_PPP_DEFINE(inst, MODEM_CELLULAR_INST_NAME(ppp, inst), NULL, 98, 1500, 64);   \

@@ -16,6 +16,7 @@
 #include <zephyr/dt-bindings/dma/stm32_dma.h>
 #include <zephyr/dt-bindings/power/stm32_pwr.h>
 #include <freq.h>
+#include <mem.h>
 
 / {
 	chosen {
@@ -225,6 +226,7 @@
 			compatible = "st,stm32g0-exti", "st,stm32-exti";
 			interrupt-controller;
 			#interrupt-cells = <1>;
+			#address-cells = <0>;
 			reg = <0x46022000 0x400>;
 			clocks = <&rcc STM32_CLOCK(APB7, 1)>;
 			num-lines = <32>;
