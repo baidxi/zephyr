@@ -1,0 +1,267 @@
+/*
+ * Copyright (c) 2019 STMicroelectronics.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <st/g4/stm32g474Xe.dtsi>
+#include <st/g4/stm32g474r(b-c-e)tx-pinctrl.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/led/led.h>
+
+/ {
+	model = "STM32G474RE-MOTOR board";
+	compatible = "st,stm32g474re-motor";
+
+	chosen {
+		zephyr,console = &usart3;
+		zephyr,shell-uart = &usart3;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,canbus = &fdcan1;
+		zephyr,code-partition = &slot0_partition;
+	};
+
+	aliases {
+		led-strip = &led_strip;
+		led0 = &led0;
+	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+
+		led0: led_0 {
+			gpios = <&gpioc 13 GPIO_ACTIVE_HIGH>;
+			label = "User LD0";
+		};
+	};
+
+
+	led_strip: ws2812 {
+		compatible = "worldsemi,ws2812-gpio";
+		chain-length = <1>;
+		color-mapping = <LED_COLOR_ID_GREEN
+							LED_COLOR_ID_RED
+							LED_COLOR_ID_BLUE>;
+		gpios = <&gpioa 5 GPIO_ACTIVE_LOW>;
+		status = "okay";
+	};
+	// pwmleds {
+	// 	compatible = "pwm-leds";
+
+	// 	green_pwm_led: green_pwm_led {
+	// 		pwms = <&pwm2 1 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+	// 	};
+	// };
+
+	gpio_keys {
+		compatible = "gpio-keys";
+
+		key1: key_1 {
+			label = "KEY1";
+			gpios = <&gpioc 9 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_1>;
+		};
+		key2: key_2 {
+			label = "KEY2";
+			gpios = <&gpioc 8 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_2>;
+		};
+		key3: key_3 {
+			label = "KEY3";
+			gpios = <&gpioc 7 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_3>;
+		};
+		key4: key_4 {
+			label = "KEY4";
+			gpios = <&gpioc 6 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_4>;
+		};
+	};
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+&clk_hsi48 {
+	status = "okay";
+};
+
+&clk_hse {
+	clock-frequency = <DT_FREQ_M(8)>;
+	status = "okay";
+};
+
+&pll {
+	div-m = <2>;
+	mul-n = <85>;
+	div-p = <2>;
+	div-q = <2>;
+	div-r = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(170)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <8>;
+	apb2-prescaler = <1>;
+};
+
+// &usart1 {
+// 	pinctrl-0 = <&usart1_tx_pc4 &usart1_rx_pc5>;
+// 	pinctrl-names = "default";
+// 	current-speed = <115200>;
+// 	status = "okay";
+// };
+
+// &lpuart1 {
+// 	pinctrl-0 = <&lpuart1_tx_pb11 &lpuart1_rx_pb10>;
+	// pinctrl-1 = <&analog_pb11 &analog_pb10>;
+// 	pinctrl-names = "default";
+// 	current-speed = <115200>;
+// 	status = "okay";
+// };
+
+&usart3 {
+	pinctrl-0 = <&usart3_tx_pb10 &usart3_rx_pb11>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+// &i2c1 {
+// 	pinctrl-0 = <&i2c1_scl_pb8 &i2c1_sda_pb9>;
+// 	pinctrl-names = "default";
+// 	status = "okay";
+// };
+
+&spi1 {
+	pinctrl-0 = <&spi1_sck_pb3 &spi1_miso_pb4 &spi1_mosi_pb5>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpiod 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+	status = "okay";
+};
+
+// &spi2 {
+// 	pinctrl-0 = <&spi2_nss_pb12 &spi2_sck_pb13
+// 		     &spi2_miso_pb14 &spi2_mosi_pb15>;
+// 	pinctrl-names = "default";
+// 	status = "okay";
+// };
+
+&spi3 {
+	/* SPI3 on the ST Morpho Connector CN7 pins 17, 1, 2, 3*/
+	pinctrl-0 = <&spi3_sck_pc10 &spi3_miso_pc11 &spi3_mosi_pc12>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+// &timers2 {
+// 	status = "okay";
+
+// 	pwm2: pwm {
+// 		status = "okay";
+// 		pinctrl-0 = <&tim2_ch1_pa5>;
+// 		pinctrl-names = "default";
+// 	};
+// };
+
+// &timers3 {
+// 	st,prescaler = <10000>;
+// 	status = "okay";
+
+// 	pwm3: pwm {
+// 		status = "okay";
+// 		pinctrl-0 = <&tim3_ch1_pb4>;
+// 		pinctrl-names = "default";
+// 	};
+// };
+
+// stm32_lp_tick_source: &lptim1 {
+// 	clocks = <&rcc STM32_CLOCK(APB1, 31)>,
+// 		 <&rcc STM32_SRC_LSI LPTIM1_SEL(1)>;
+// 	status = "okay";
+// };
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK(APB1, 10)>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
+	status = "okay";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(34)>;
+		};
+
+		slot0_partition: partition@8800 {
+			label = "image-0";
+			reg = <0x00008800 DT_SIZE_K(256)>;
+		};
+
+		slot1_partition: partition@48800 {
+			label = "image-1";
+			reg = <0x00048800 DT_SIZE_K(218)>;
+		};
+
+		/* Set 4Kb of storage at the end of the 512Kb of flash */
+		storage_partition: partition@7f000 {
+			label = "storage";
+			reg = <0x0007f000 DT_SIZE_K(4)>;
+		};
+	};
+};
+
+&iwdg {
+	status = "okay";
+};
+
+&rng {
+	status = "okay";
+};
+
+// &adc1 {
+// 	pinctrl-0 = <&adc1_in1_pa0>;
+// 	pinctrl-names = "default";
+// 	st,adc-clock-source = "SYNC";
+// 	st,adc-prescaler = <4>;
+// 	status = "okay";
+// };
+
+// &die_temp {
+// 	status = "okay";
+// };
+
+// &dac1 {
+// 	pinctrl-0 = <&dac1_out1_pa4>;
+// 	pinctrl-names = "default";
+// 	status = "okay";
+// };
+
+&fdcan1 {
+	clocks = <&rcc STM32_CLOCK(APB1, 8)>,
+		 <&rcc STM32_SRC_HSE FDCAN_SEL(2)>;
+	pinctrl-0 = <&fdcan1_rx_pb8 &fdcan1_tx_pb9>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+// &vref {
+// 	status = "okay";
+// };
+
+// &vbat {
+// 	status = "okay";
+// };
+

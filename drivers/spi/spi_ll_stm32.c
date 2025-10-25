@@ -274,8 +274,13 @@ static int spi_dma_move_rx_buffers(const struct device *dev, size_t len)
 	struct spi_stm32_data *data = dev->data;
 	size_t dma_segment_len;
 
-	dma_segment_len = len * data->dma_rx.dma_cfg.dest_data_size;
-	return spi_stm32_dma_rx_load(dev, data->ctx.rx_buf, dma_segment_len);
+	if (data->ctx.rx_buf)
+	{
+		dma_segment_len = len * data->dma_rx.dma_cfg.dest_data_size;
+		return spi_stm32_dma_rx_load(dev, data->ctx.rx_buf, dma_segment_len);
+	}
+
+	return 0;
 }
 
 static int spi_dma_move_tx_buffers(const struct device *dev, size_t len)
@@ -1184,8 +1189,10 @@ static int transceive_dma(const struct device *dev,
 #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
 	/* set request before enabling (else SPI CFG1 reg is write protected) */
 	if (transfer_dir == LL_SPI_FULL_DUPLEX) {
-		LL_SPI_EnableDMAReq_RX(spi);
-		LL_SPI_EnableDMAReq_TX(spi);
+		if (rx_bufs)
+			LL_SPI_EnableDMAReq_RX(spi);
+		if (tx_bufs)
+			LL_SPI_EnableDMAReq_TX(spi);
 	} else if (transfer_dir == LL_SPI_HALF_DUPLEX_TX) {
 		LL_SPI_EnableDMAReq_TX(spi);
 	} else {
@@ -1210,10 +1217,15 @@ static int transceive_dma(const struct device *dev,
 
 	uint8_t word_size_bytes = bits2bytes(SPI_WORD_SIZE_GET(config->operation));
 
-	data->dma_rx.dma_cfg.source_data_size = word_size_bytes;
-	data->dma_rx.dma_cfg.dest_data_size = word_size_bytes;
-	data->dma_tx.dma_cfg.source_data_size = word_size_bytes;
-	data->dma_tx.dma_cfg.dest_data_size = word_size_bytes;
+	if (rx_bufs) {
+		data->dma_rx.dma_cfg.source_data_size = word_size_bytes;
+		data->dma_rx.dma_cfg.dest_data_size = word_size_bytes;
+	}
+
+	if (tx_bufs) {
+		data->dma_tx.dma_cfg.source_data_size = word_size_bytes;
+		data->dma_tx.dma_cfg.dest_data_size = word_size_bytes;
+	}
 
 	while (data->ctx.rx_len > 0 || data->ctx.tx_len > 0) {
 		size_t dma_len;
@@ -1253,8 +1265,10 @@ static int transceive_dma(const struct device *dev,
 
 		/* toggle the DMA request to restart the transfer */
 		if (transfer_dir == LL_SPI_FULL_DUPLEX) {
-			LL_SPI_EnableDMAReq_RX(spi);
-			LL_SPI_EnableDMAReq_TX(spi);
+			if (rx_bufs)
+				LL_SPI_EnableDMAReq_RX(spi);
+			if (tx_bufs)
+				LL_SPI_EnableDMAReq_TX(spi);
 		} else if (transfer_dir == LL_SPI_HALF_DUPLEX_TX) {
 			LL_SPI_EnableDMAReq_TX(spi);
 		} else {

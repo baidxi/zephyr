@@ -91,13 +91,13 @@
 		key1: key1 {
 			label = "KEY1";
 			gpios = <&gpioc 9 GPIO_ACTIVE_LOW>;
-			zephyr,code = <INPUT_KEY_1>;
+			zephyr,code = <INPUT_KEY_ENTER>;
 		};
 
 		key2: key2 {
 			label = "KEY2";
 			gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
-			zephyr,code = <INPUT_KEY_2>;
+			zephyr,code = <INPUT_KEY_ESC>;
 		};
 	};
 	

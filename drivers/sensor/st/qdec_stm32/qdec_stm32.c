@@ -66,21 +66,44 @@ static void qdec_stm32_isr(const struct device *dev)
 {
 	const struct qdec_stm32_dev_cfg *config = dev->config;
 	struct qdec_stm32_dev_data *data = dev->data;
-
 	TIM_TypeDef *timer = config->timer_inst;
+	bool work_submitted = false;
 
-	if (LL_TIM_IsActiveFlag_UPDATE(timer) && LL_TIM_IsEnabledIT_UPDATE(timer)) {
-		LL_TIM_ClearFlag_UPDATE(timer);
-
-		/*
-		 * In encoder mode, CCxIF flags might be set by hardware on edges.
-		 * Even if CCxIE is not set, it's safer to clear them to avoid
-		 * potential issues where the interrupt is not properly acknowledged.
-		 */
+	/* Main interrupt sources: Capture/Compare 1 and 2 */
+	if (LL_TIM_IsActiveFlag_CC1(timer) && LL_TIM_IsEnabledIT_CC1(timer)) {
 		LL_TIM_ClearFlag_CC1(timer);
-		LL_TIM_ClearFlag_CC2(timer);
+		if (!work_submitted) {
+			k_work_submit(&data->work);
+			work_submitted = true;
+		}
+	}
 
-		k_work_submit(&data->work);
+	if (LL_TIM_IsActiveFlag_CC2(timer) && LL_TIM_IsEnabledIT_CC2(timer)) {
+		LL_TIM_ClearFlag_CC2(timer);
+		if (!work_submitted) {
+			k_work_submit(&data->work);
+			work_submitted = true;
+		}
+	}
+
+	/*
+	 * Defensively clear ALL other flags that share the same IRQ vector
+	 * to prevent the interrupt line from getting stuck.
+	 */
+	if (LL_TIM_IsActiveFlag_UPDATE(timer)) {
+		LL_TIM_ClearFlag_UPDATE(timer);
+	}
+	if (LL_TIM_IsActiveFlag_CC1OVR(timer)) {
+		LL_TIM_ClearFlag_CC1OVR(timer);
+	}
+	if (LL_TIM_IsActiveFlag_CC2OVR(timer)) {
+		LL_TIM_ClearFlag_CC2OVR(timer);
+	}
+	if (LL_TIM_IsActiveFlag_TRIG(timer)) {
+		LL_TIM_ClearFlag_TRIG(timer);
+	}
+	if (LL_TIM_IsActiveFlag_COM(timer)) {
+		LL_TIM_ClearFlag_COM(timer);
 	}
 }
 
@@ -101,7 +124,8 @@ static int qdec_stm32_trigger_set(const struct device *dev, const struct sensor_
 	if (handler == NULL)
 		return 0;
 
-	LL_TIM_EnableIT_UPDATE(timer);
+	LL_TIM_EnableIT_CC1(timer);
+	LL_TIM_EnableIT_CC2(timer);
 
 	return 0;
 }
@@ -204,6 +228,9 @@ static int qdec_stm32_initialize(const struct device *dev)
 	k_work_init(&data->work, qdec_stm32_work);
 	dev_cfg->irq_config(dev);
 #endif
+
+	/* Clear any flags that may have been set during configuration */
+	LL_TIM_ClearFlag_UPDATE(dev_cfg->timer_inst);
 
 	return 0;
 }
