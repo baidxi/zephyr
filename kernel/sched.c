@@ -77,6 +77,7 @@ static ALWAYS_INLINE void *curr_cpu_runq(void)
 static ALWAYS_INLINE void runq_add(struct k_thread *thread)
 {
 	__ASSERT_NO_MSG(!z_is_idle_thread_object(thread));
+	__ASSERT_NO_MSG(!is_thread_dummy(thread));
 
 	_priq_run_add(thread_runq(thread), thread);
 }
@@ -84,6 +85,7 @@ static ALWAYS_INLINE void runq_add(struct k_thread *thread)
 static ALWAYS_INLINE void runq_remove(struct k_thread *thread)
 {
 	__ASSERT_NO_MSG(!z_is_idle_thread_object(thread));
+	__ASSERT_NO_MSG(!is_thread_dummy(thread));
 
 	_priq_run_remove(thread_runq(thread), thread);
 }
@@ -755,6 +757,9 @@ void z_reschedule_irqlock(uint32_t key)
 
 void k_sched_lock(void)
 {
+	LOG_DBG("scheduler locked (%p:%d)",
+		_current, _current->base.sched_locked);
+
 	K_SPINLOCK(&_sched_spinlock) {
 		SYS_PORT_TRACING_FUNC(k_thread, sched_lock);
 
@@ -1005,7 +1010,7 @@ void z_impl_k_thread_absolute_deadline_set(k_tid_t tid, int deadline)
 void z_impl_k_thread_deadline_set(k_tid_t tid, int deadline)
 {
 
-	deadline = CLAMP(deadline, 0, INT_MAX);
+	deadline = clamp(deadline, 0, INT_MAX);
 
 	int32_t newdl = k_cycle_get_32() + deadline;
 
@@ -1139,7 +1144,7 @@ int32_t z_impl_k_sleep(k_timeout_t timeout)
 
 	/* k_sleep() still returns 32 bit milliseconds for compatibility */
 	int64_t ms = K_TIMEOUT_EQ(timeout, K_FOREVER) ? K_TICKS_FOREVER :
-		CLAMP(k_ticks_to_ms_ceil64(ticks), 0, INT_MAX);
+		clamp(k_ticks_to_ms_ceil64(ticks), 0, INT_MAX);
 
 	SYS_PORT_TRACING_FUNC_EXIT(k_thread, sleep, timeout, ms);
 	return (int32_t) ms;

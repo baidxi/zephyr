@@ -42,6 +42,8 @@ Security Vulnerability Related
 ******************************
 The following CVEs are addressed by this release:
 
+* :cve:`2025-12035`: Under embargo until 2025-12-13
+
 More detailed information can be found in:
 https://docs.zephyrproject.org/latest/security/vulnerabilities.html
 
@@ -87,6 +89,11 @@ Deprecated APIs and options
 
 * :c:func:`bt_ctlr_set_public_addr` is deprecated in favor of using
   :c:struct:`bt_hci_cp_vs_write_bd_addr` for setting the public Bluetooth device address.
+
+* :kconfig:option:`CONFIG_JWT_SIGN_RSA_LEGACY` is deprecated. Please switch to the
+  PSA Crypto API based alternative (i.e. :kconfig:option:`CONFIG_JWT_SIGN_RSA_PSA`).
+
+* RISCV's :kconfig:option:`CONFIG_EXTRA_EXCEPTION_INFO` is deprecated. Use :kconfig:option:`CONFIG_EXCEPTION_DEBUG` instead.
 
 New APIs and options
 ====================
@@ -166,6 +173,10 @@ New APIs and options
 
     * :kconfig:option:`CONFIG_SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_AL_88`
     * :kconfig:option:`CONFIG_SDL_DISPLAY_COLOR_TINT`
+
+* Haptics
+
+  * :kconfig:option:`CONFIG_HAPTICS_SHELL`
 
 * Kernel
 
@@ -309,10 +320,17 @@ New APIs and options
 
   * :c:macro:`__deprecated_version`
 
+* USB
+
+  * Video
+
+    * :c:func:`uvc_add_format`
+
 * Video
 
   * :c:member:`video_format.size` field
   * :c:func:`video_estimate_fmt_size`
+  * :c:func:`video_transfer_buffer`
 
 .. zephyr-keep-sorted-stop
 
