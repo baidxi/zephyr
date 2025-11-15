@@ -499,12 +499,13 @@ class DevicetreeLintingCheck(ComplianceTest):
     NPX_EXECUTABLE = "npx"
 
     def ensure_npx(self) -> bool:
-        if not shutil.which(self.NPX_EXECUTABLE):
+        if not (npx_executable := shutil.which(self.NPX_EXECUTABLE)):
             return False
         try:
+            self.npx_exe = npx_executable
             # --no prevents npx from fetching from registry
             subprocess.run(
-                [self.NPX_EXECUTABLE, "--prefix", "./scripts/ci", "--no", 'dts-linter', "--", "--version"],
+                [self.npx_exe, "--prefix", "./scripts/ci", "--no", 'dts-linter', "--", "--version"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=True,
@@ -535,6 +536,7 @@ class DevicetreeLintingCheck(ComplianceTest):
             raise RuntimeError(f"Failed to parse dts-linter JSON output: {e}")
 
     def run(self):
+        self.npx_exe = self.NPX_EXECUTABLE
         # Get changed DTS files
         dts_files = [
             file for file in get_files(filter="d")
@@ -560,7 +562,7 @@ class DevicetreeLintingCheck(ComplianceTest):
             temp_patch_files.append(temp_patch)
 
             cmd = [
-                "npx", "--prefix", "./scripts/ci", "--no",
+                self.npx_exe, "--prefix", "./scripts/ci", "--no",
                 "dts-linter", "--", "--outputFormat",
                 "json", "--format",
                 "--patchFile", temp_patch,
@@ -1386,39 +1388,6 @@ flagged.
         "FOO_LOG_LEVEL",
         "FOO_SETTING_1",
         "FOO_SETTING_2",
-        "GEN_UICR_APPROTECT_APPLICATION_PROTECTED",
-        "GEN_UICR_APPROTECT_CORESIGHT_PROTECTED",
-        "GEN_UICR_APPROTECT_RADIOCORE_PROTECTED",
-        "GEN_UICR_ERASEPROTECT",
-        "GEN_UICR_GENERATE_PERIPHCONF",
-        "GEN_UICR_LOCK",
-        "GEN_UICR_PROTECTEDMEM",
-        "GEN_UICR_PROTECTEDMEM_SIZE_BYTES",
-        "GEN_UICR_SECONDARY",
-        "GEN_UICR_SECONDARY_GENERATE_PERIPHCONF",
-        "GEN_UICR_SECONDARY_PROCESSOR_APPLICATION",
-        "GEN_UICR_SECONDARY_PROCESSOR_RADIOCORE",
-        "GEN_UICR_SECONDARY_PROCESSOR_VALUE",
-        "GEN_UICR_SECONDARY_PROTECTEDMEM",
-        "GEN_UICR_SECONDARY_PROTECTEDMEM_SIZE_BYTES",
-        "GEN_UICR_SECONDARY_TRIGGER",
-        "GEN_UICR_SECONDARY_TRIGGER_APPLICATIONLOCKUP",
-        "GEN_UICR_SECONDARY_TRIGGER_APPLICATIONWDT0",
-        "GEN_UICR_SECONDARY_TRIGGER_APPLICATIONWDT1",
-        "GEN_UICR_SECONDARY_TRIGGER_RADIOCORELOCKUP",
-        "GEN_UICR_SECONDARY_TRIGGER_RADIOCOREWDT0",
-        "GEN_UICR_SECONDARY_TRIGGER_RADIOCOREWDT1",
-        "GEN_UICR_SECONDARY_WDTSTART",
-        "GEN_UICR_SECONDARY_WDTSTART_CRV",
-        "GEN_UICR_SECONDARY_WDTSTART_INSTANCE_CODE",
-        "GEN_UICR_SECONDARY_WDTSTART_INSTANCE_WDT0",
-        "GEN_UICR_SECONDARY_WDTSTART_INSTANCE_WDT1",
-        "GEN_UICR_SECURESTORAGE",
-        "GEN_UICR_WDTSTART",
-        "GEN_UICR_WDTSTART_CRV",
-        "GEN_UICR_WDTSTART_INSTANCE_CODE",
-        "GEN_UICR_WDTSTART_INSTANCE_WDT0",
-        "GEN_UICR_WDTSTART_INSTANCE_WDT1",
         "HEAP_MEM_POOL_ADD_SIZE_", # Used as an option matching prefix
         "HUGETLBFS",          # Linux, in boards/xtensa/intel_adsp_cavs25/doc
         "IAR_BUFFERED_WRITE",

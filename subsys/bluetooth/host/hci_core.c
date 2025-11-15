@@ -4,6 +4,7 @@
  * Copyright (c) 2017-2025 Nordic Semiconductor ASA
  * Copyright (c) 2015-2016 Intel Corporation
  * Copyright 2025 NXP
+ * Copyright (c) 2025 Xiaomi Corporation
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -1067,9 +1068,9 @@ static void hci_disconn_complete(struct net_buf *buf)
 
 	bt_conn_set_state(conn, BT_CONN_DISCONNECTED);
 
-	if (conn->type != BT_CONN_TYPE_LE) {
+	if (!bt_conn_is_le(conn)) {
 #if defined(CONFIG_BT_CLASSIC)
-		if (conn->type == BT_CONN_TYPE_SCO) {
+		if (bt_conn_is_sco(conn)) {
 			bt_sco_cleanup(conn);
 			return;
 		}
@@ -1077,7 +1078,7 @@ static void hci_disconn_complete(struct net_buf *buf)
 		 * If only for one connection session bond was set, clear keys
 		 * database row for this connection.
 		 */
-		if (conn->type == BT_CONN_TYPE_BR && conn->br.link_key != NULL) {
+		if (bt_conn_is_br(conn) && conn->br.link_key != NULL) {
 			/*
 			 * If the connection link is paired but not bond, remove
 			 * the link key upon disconnection.
@@ -2152,7 +2153,7 @@ static void unpair(uint8_t id, const bt_addr_le_t *addr)
 		 * and don't want any subsequent code (like disconnected
 		 * callbacks) accessing it.
 		 */
-		if (conn->type == BT_CONN_TYPE_LE) {
+		if (bt_conn_is_le(conn)) {
 			keys = conn->le.keys;
 			conn->le.keys = NULL;
 		}
@@ -2291,7 +2292,7 @@ static void hci_encrypt_change(struct net_buf *buf)
 	conn->encrypt = evt->encrypt;
 
 #if defined(CONFIG_BT_SMP)
-	if (conn->type == BT_CONN_TYPE_LE) {
+	if (bt_conn_is_le(conn)) {
 		/*
 		 * we update keys properties only on successful encryption to
 		 * avoid losing valid keys if encryption was not successful.
@@ -2310,7 +2311,7 @@ static void hci_encrypt_change(struct net_buf *buf)
 	}
 #endif /* CONFIG_BT_SMP */
 #if defined(CONFIG_BT_CLASSIC)
-	if (conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(conn)) {
 		if (!bt_br_update_sec_level(conn)) {
 			bt_conn_unref(conn);
 			return;
@@ -2371,7 +2372,7 @@ static void hci_encrypt_key_refresh_complete(struct net_buf *buf)
 	 * only security level based on available keys and encryption state.
 	 */
 #if defined(CONFIG_BT_SMP)
-	if (conn->type == BT_CONN_TYPE_LE) {
+	if (bt_conn_is_le(conn)) {
 		bt_smp_update_keys(conn);
 
 		if (!update_sec_level(conn)) {
@@ -2380,7 +2381,7 @@ static void hci_encrypt_key_refresh_complete(struct net_buf *buf)
 	}
 #endif /* CONFIG_BT_SMP */
 #if defined(CONFIG_BT_CLASSIC)
-	if (conn->type == BT_CONN_TYPE_BR) {
+	if (bt_conn_is_br(conn)) {
 		if (!bt_br_update_sec_level(conn)) {
 			bt_conn_unref(conn);
 			return;
@@ -3974,7 +3975,7 @@ const char *bt_hci_get_ver_str(uint8_t core_version)
 {
 	const char * const str[] = {
 		"1.0b", "1.1", "1.2", "2.0", "2.1", "3.0", "4.0", "4.1", "4.2",
-		"5.0", "5.1", "5.2", "5.3", "5.4", "6.0", "6.1"
+		"5.0", "5.1", "5.2", "5.3", "5.4", "6.0", "6.1", "6.2"
 	};
 
 	if (core_version < ARRAY_SIZE(str)) {
