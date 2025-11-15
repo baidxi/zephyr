@@ -10,8 +10,8 @@
     compatible = "st,stm32g431rb-motor";
 
     chosen {
-		zephyr,console = &usart1;
-		zephyr,shell-uart = &usart1;
+		zephyr,console = &usart3;
+		zephyr,shell-uart = &usart3;
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
@@ -21,7 +21,6 @@
     aliases {
   		qdec0 = &qdec0;
 		pwm1 = &pwm1;
-		tty3 = &usart3;
 		tim1 = &timers1;
 		adc2 = &adc2;
     };
@@ -43,7 +42,6 @@
 			width = <160>;
 			height = <80>;
 			// inversion-on;
-			rgb-is-inverted;
 			x-offset = <0>;
 			y-offset = <24>;
 			pwctr1 = [AB 0B 04];
@@ -158,6 +156,9 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
+	dmas = <&dmamux1 5 36 (STM32_DMA_PERIPH_RX | STM32_DMA_PRIORITY_LOW)>;
+	dma-names = "rx";
+
 	channel@3 {
 		reg = <3>;
 		zephyr,gain = "ADC_GAIN_1";
@@ -213,24 +214,31 @@
 	pinctrl-0 = <&usart1_tx_pb6 &usart1_rx_pb7>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
+	dmas = <&dmamux1 1 24 (STM32_DMA_PERIPH_RX | STM32_DMA_PRIORITY_LOW)>,
+		   <&dmamux1 2 25 (STM32_DMA_PERIPH_TX | STM32_DMA_PRIORITY_LOW)>;
+	dma-names = "rx","tx";
 	status = "okay";
+
 };
 
 &usart3 {
 	pinctrl-0 = <&usart3_tx_pb10 &usart3_rx_pb11>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
+	dmas = <&dmamux1 3 28 (STM32_DMA_PERIPH_RX | STM32_DMA_PRIORITY_LOW)>,
+		   <&dmamux1 4 29 (STM32_DMA_PERIPH_TX | STM32_DMA_PRIORITY_LOW)>;
+	dma-names = "rx","tx";
 	status = "okay";
 };
 
 &spi3 {
 	pinctrl-0 = <&spi3_sck_pc10 &spi3_mosi_pc12>;
 	pinctrl-names = "default";
-	cs-gpios = <&gpioa 15 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+	cs-gpios = <&gpioa 15 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
 	clock-frequency = <DT_FREQ_M(20)>;
-	dmas = <&dmamux1 1 15 (STM32_DMA_PERIPH_TX | STM32_DMA_PRIORITY_LOW)>,
-			<&dmamux1 2 14 (STM32_DMA_PERIPH_RX | STM32_DMA_PRIORITY_LOW)>;
-	dma-names = "tx", "rx";
+	dmas = <&dmamux1 0 15 (STM32_DMA_PERIPH_TX | STM32_DMA_PRIORITY_LOW)>;
+			// <&dmamux1 1 14 (STM32_DMA_PERIPH_RX | STM32_DMA_PRIORITY_LOW)>;
+	dma-names = "tx";
 	status = "okay";
 };
 
@@ -282,12 +290,13 @@
 };
 
 &timers1 {
-    st,prescaler = <0>;
+    st,prescaler = <3>;
     st,countermode = <STM32_TIM_COUNTERMODE_CENTER_UP_DOWN>;
     status = "okay";
 
     pwm1: pwm {
         pinctrl-0 = <&tim1_ch1_pc0 &tim1_ch2_pc1 &tim1_ch3_pc2 &tim1_ch4_pc3>;
+	
         pinctrl-names = "default";
         status = "okay";
     };
