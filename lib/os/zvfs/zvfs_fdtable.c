@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2018 Linaro Limited
  * Copyright (c) 2024 Tenstorrent AI ULC
+ * Copyright (c) 2025 Antmicro
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,8 +24,9 @@
 #include <zephyr/sys/speculation.h>
 #include <zephyr/internal/syscall_handler.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/fs/fs.h>
 
-struct stat;
+K_MEM_SLAB_DEFINE(file_desc_slab, sizeof(struct fs_file_t), ZVFS_OPEN_SIZE, 4);
 
 struct fd_entry {
 	void *obj;
@@ -72,6 +74,46 @@ static struct fd_entry fdtable[ZVFS_OPEN_SIZE] = {
 	{0},
 #endif
 };
+
+int zvfs_open(const char *name, int flags, struct fd_op_vtable *vtable)
+{
+	int rc, fd;
+	struct fs_file_t *ptr = NULL;
+
+	fd = zvfs_reserve_fd();
+	if (fd < 0) {
+		return -1;
+	}
+
+	rc = k_mem_slab_alloc(&file_desc_slab, (void **)&ptr, K_NO_WAIT);
+	if (rc < 0) {
+		rc = -EMFILE;
+		goto out_err;
+	}
+
+	fs_file_t_init(ptr);
+
+	rc = fs_open(ptr, name, flags);
+	if (rc < 0) {
+		goto out_err;
+	}
+
+	zvfs_finalize_fd(fd, ptr, vtable);
+
+	goto out;
+
+out_err:
+	if (ptr != NULL) {
+		k_mem_slab_free(&file_desc_slab, ptr);
+	}
+
+	zvfs_free_fd(fd);
+	errno = -rc;
+	return -1;
+
+out:
+	return fd;
+}
 
 static K_MUTEX_DEFINE(fdtable_lock);
 
@@ -137,30 +179,6 @@ static int _check_fd(int fd)
 	return 0;
 }
 
-#ifdef CONFIG_ZTEST
-bool fdtable_fd_is_initialized(int fd)
-{
-	struct k_mutex ref_lock;
-	struct k_condvar ref_cond;
-
-	if (fd < 0 || fd >= ARRAY_SIZE(fdtable)) {
-		return false;
-	}
-
-	ref_lock = (struct k_mutex)Z_MUTEX_INITIALIZER(fdtable[fd].lock);
-	if (memcmp(&ref_lock, &fdtable[fd].lock, sizeof(ref_lock)) != 0) {
-		return false;
-	}
-
-	ref_cond = (struct k_condvar)Z_CONDVAR_INITIALIZER(fdtable[fd].cond);
-	if (memcmp(&ref_cond, &fdtable[fd].cond, sizeof(ref_cond)) != 0) {
-		return false;
-	}
-
-	return true;
-}
-#endif /* CONFIG_ZTEST */
-
 void *zvfs_get_fd_obj(int fd, const struct fd_op_vtable *vtable, int err)
 {
 	struct fd_entry *entry;
@@ -194,7 +212,7 @@ static int z_get_fd_by_obj_and_vtable(void *obj, const struct fd_op_vtable *vtab
 }
 
 bool zvfs_get_obj_lock_and_cond(void *obj, const struct fd_op_vtable *vtable, struct k_mutex **lock,
-			     struct k_condvar **cond)
+				struct k_condvar **cond)
 {
 	int fd;
 	struct fd_entry *entry;
@@ -217,8 +235,7 @@ bool zvfs_get_obj_lock_and_cond(void *obj, const struct fd_op_vtable *vtable, st
 	return true;
 }
 
-void *zvfs_get_fd_obj_and_vtable(int fd, const struct fd_op_vtable **vtable,
-			      struct k_mutex **lock)
+void *zvfs_get_fd_obj_and_vtable(int fd, const struct fd_op_vtable **vtable, struct k_mutex **lock)
 {
 	struct fd_entry *entry;
 
@@ -282,8 +299,7 @@ void zvfs_finalize_typed_fd(int fd, void *obj, const struct fd_op_vtable *vtable
 	if (vtable && vtable->ioctl) {
 		int prev_errno = errno;
 
-		(void)zvfs_fdtable_call_ioctl(vtable, obj, ZFD_IOCTL_SET_LOCK,
-					   &fdtable[fd].lock);
+		(void)zvfs_fdtable_call_ioctl(vtable, obj, ZFD_IOCTL_SET_LOCK, &fdtable[fd].lock);
 		if ((prev_errno != EOPNOTSUPP) && (errno == EOPNOTSUPP)) {
 			/* restore backed-up errno value if the backend does not support locking */
 			errno = prev_errno;
@@ -432,7 +448,7 @@ int zvfs_fileno(FILE *file)
 	return (struct fd_entry *)file - fdtable;
 }
 
-int zvfs_fstat(int fd, struct stat *buf)
+int zvfs_fstat(int fd, struct zvfs_stat *buf)
 {
 	if (_check_fd(fd) < 0) {
 		return -1;
@@ -535,6 +551,27 @@ int zvfs_ioctl(int fd, unsigned long request, va_list args)
 	return fdtable[fd].vtable->ioctl(fdtable[fd].obj, request, args);
 }
 
+int zvfs_unlink(const char *path)
+{
+	int res = fs_unlink(path);
+
+	if (res < 0) {
+		errno = -res;
+		return -1;
+	}
+	return 0;
+}
+
+int zvfs_rename(const char *old, const char *newp)
+{
+	int res = fs_rename(old, newp);
+
+	if (res < 0) {
+		errno = -res;
+		return -1;
+	}
+	return 0;
+}
 
 #if defined(CONFIG_POSIX_DEVICE_IO)
 /*
@@ -562,7 +599,6 @@ static int stdinout_ioctl_vmeth(void *obj, unsigned int request, va_list args)
 	errno = EINVAL;
 	return -1;
 }
-
 
 static const struct fd_op_vtable stdinout_fd_op_vtable = {
 	.read = stdinout_read_vmeth,

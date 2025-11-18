@@ -1144,12 +1144,13 @@ Disk:
     - drivers.disk
 
 Display drivers:
-  status: odd fixes
+  status: maintained
+  maintainers:
+    - JarmouniA
   collaborators:
     - jfischer-no
     - danieldegrasse
     - VynDragon
-    - jarmouniA
   files:
     - drivers/display/
     - dts/bindings/display/
@@ -5938,10 +5939,10 @@ West:
   maintainers:
     - d3zd3z
     - ceolin
-  collaborators:
-    - wearyzen
     - valeriosetti
     - tomi-font
+  collaborators:
+    - wearyzen
     - ithinuel
   files:
     - modules/mbedtls/
@@ -6073,11 +6074,11 @@ West:
   status: maintained
   maintainers:
     - d3zd3z
+    - tomi-font
   collaborators:
     - Vge0rge
     - wearyzen
     - valeriosetti
-    - tomi-font
     - ithinuel
   files: []
   labels:
@@ -6096,11 +6097,11 @@ West:
   status: maintained
   maintainers:
     - d3zd3z
+    - tomi-font
   collaborators:
     - Vge0rge
     - wearyzen
     - valeriosetti
-    - tomi-font
     - ithinuel
   files: []
   labels:
@@ -6146,11 +6147,11 @@ West:
   status: maintained
   maintainers:
     - d3zd3z
+    - tomi-font
   collaborators:
     - Vge0rge
     - wearyzen
     - valeriosetti
-    - tomi-font
     - ithinuel
   files:
     - modules/trusted-firmware-m/
