@@ -1,0 +1,23 @@
+identifier: motor_g474ve
+name: ST G474VE
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 128
+flash: 512
+supported:
+  - nvs
+  - pwm
+  - i2c
+  - gpio
+  - counter
+  - spi
+  - watchdog
+  - adc
+  - dac
+  - dma
+  - can
+  - rtc
+vendor: st

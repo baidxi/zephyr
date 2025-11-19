@@ -142,7 +142,7 @@
 &adc2 {
 	st,adc-prescaler = <4>;
 	st,adc-clock-source = "SYNC";
-	st,adc-oversampler = "minimal";
+	st,adc-oversampler = "none";
 	pinctrl-0 = <&adc2_in3_pa6
 			&adc2_in4_pa7
 			&adc2_in5_pc4

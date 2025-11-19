@@ -1,0 +1,6 @@
+board:
+  name: motor_g474ve
+  full_name: Motor G474VE
+  vendor: st
+  socs:
+    - name: stm32g474xx
