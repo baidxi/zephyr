@@ -60,6 +60,34 @@
 #         Like 'files-regex', but any matching files will be excluded from the
 #         area.
 #
+#     file-groups:
+#         A list of groups of files that are treated as a single unit.
+#         This is useful for areas where different collaborators are responsible for
+#         different parts of the area.
+#
+#         File groups inherit file patterns from their parent area. A file will only
+#         match a file group if it first matches the parent area's patterns, and then
+#         also matches the file group's own patterns. This allows file groups to
+#         further filter and subdivide files that are already covered by the area.
+#
+#         Each group should have the following structure:
+#         - name: <group name>
+#           collaborators:
+#             - <GitHub handle>
+#             - <GitHub handle>
+#           files:
+#             - <file path>
+#             - <file path>
+#           files-regex:
+#             - <regex pattern>
+#             - <regex pattern>
+#           files-exclude:
+#             - <file path>
+#             - <file path>
+#           files-regex-exclude:
+#             - <regex pattern>
+#             - <regex pattern>
+#
 #     description: >-
 #         Plain-English description. Describe what the system is about, from an
 #         outsider's perspective.
@@ -955,7 +983,7 @@ Continuous Integration:
     - scripts/make_bugs_pickle.py
     - .checkpatch.conf
     - scripts/gitlint/
-    - scripts/set_assignees.py
+    - scripts/ci/set_assignees.py
     - scripts/footprint/
   labels:
     - "area: Continuous Integration"
@@ -2058,6 +2086,8 @@ Documentation Infrastructure:
   status: maintained
   maintainers:
     - rerickson1
+  collaborators:
+    - SeppoTakalo
   files:
     - drivers/modem/
     - tests/drivers/build_all/modem/
@@ -2612,8 +2642,6 @@ Documentation Infrastructure:
     - wm-eisos
   files:
     - drivers/sensor/wsen/
-  labels:
-    - "area: Sensors"
   tests:
     - drivers.sensors
   description: >-
@@ -3279,7 +3307,7 @@ MAINTAINERS file:
   files:
     - MAINTAINERS.yml
     - scripts/get_maintainer.py
-    - scripts/set_assignees.py
+    - scripts/ci/set_assignees.py
     - scripts/check_maintainers.py
   labels:
     - "area: MAINTAINER File"
@@ -3407,6 +3435,8 @@ Modem:
   status: maintained
   maintainers:
     - bjarki-andreasen
+  collaborators:
+    - SeppoTakalo
   files:
     - subsys/modem/
     - include/zephyr/modem/
@@ -4776,10 +4806,10 @@ State machine framework:
   status: maintained
   maintainers:
     - sambhurst
+    - vlad-kulikov
   collaborators:
     - keith-zephyr
     - glenn-andrews
-    - vlad-kulikov
   files:
     - doc/services/smf/
     - include/zephyr/smf.h
@@ -4871,8 +4901,6 @@ TDK Sensors:
     - gjabouley-invn
   files:
     - drivers/sensor/tdk/
-  labels:
-    - "area: Sensors"
   tests:
     - drivers.sensors
 
