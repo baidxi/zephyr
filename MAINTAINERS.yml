@@ -361,6 +361,8 @@ Arduino Platforms:
     - pillo79
   collaborators:
     - facchinm
+    - iabdalkader
+    - pennam
   files:
     - boards/arduino/
     - boards/shields/arduino_*/
@@ -2009,6 +2011,7 @@ Documentation Infrastructure:
     - danieldegrasse
   files:
     - drivers/mipi_dbi/
+    - include/zephyr/drivers/mipi_dbi.h
     - dts/bindings/mipi-dbi/
     - include/zephyr/dt-bindings/mipi_dbi/
   labels:
@@ -2916,6 +2919,8 @@ Infineon Platforms:
   collaborators:
     - mcatee-infineon
     - talih0
+    - billwatersiii
+    - jsbatch
   files:
     - boards/cypress/
     - boards/infineon/
@@ -3402,7 +3407,6 @@ Microchip SAM Platforms:
     - nandojve
   collaborators:
     - ArunMCHP
-    - pdgendt
     - stephanosio
   files:
     - boards/atmel/
@@ -3492,6 +3496,7 @@ NXP Platform Drivers:
     - manuargue
     - dbaluta
     - Raymond0225
+    - Holt-Sun
   files-regex:
     - ^drivers/.*nxp.*
     - ^drivers/.*mcux.*
@@ -4929,6 +4934,7 @@ TI MSPM0 Platforms:
   status: maintained
   maintainers:
     - ssekar15
+    - d-philpot
   files:
     - soc/ti/mspm0/
     - boards/ti/lp_mspm0g3507/
@@ -5531,8 +5537,6 @@ West:
   status: maintained
   maintainers:
     - nandojve
-  collaborators:
-    - pdgendt
   files:
     - modules/Kconfig.atmel
   labels:
@@ -5606,6 +5610,8 @@ West:
     - parthitce
     - talih0
     - mcatee-infineon
+    - billwatersiii
+    - jsbatch
   files:
     - modules/Kconfig.infineon
     - modules/hal_infineon/
@@ -5822,6 +5828,7 @@ West:
   maintainers:
     - vaishnavachath
     - ssekar15
+    - d-philpot
   files: []
   labels:
     - "platform: TI"
@@ -6264,6 +6271,7 @@ Xilinx Platforms:
   collaborators:
     - henrikbrixandersen
     - ibirnbaum
+    - kedareswararao
   files:
     - boards/amd/
     - drivers/*/*xilinx*
