@@ -1,0 +1,18 @@
+identifier: stm32h743 iot
+name: STM32H743 IOT Board
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 512
+flash: 2048
+supported:
+  - gpio
+  - counter
+  - spi
+  - backup_sram
+  - watchdog
+  - qspi
+  - video
+vendor: weact
