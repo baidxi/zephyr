@@ -87,7 +87,10 @@ struct pwm_stm32_data {
 
 /** PWM configuration. */
 struct pwm_stm32_config {
-	TIM_TypeDef *timer;
+	union {
+		TIM_TypeDef *timer;
+		HRTIM_TypeDef *hrtimer;
+	};
 	uint32_t prescaler;
 	uint32_t countermode;
 	uint32_t deadtime;

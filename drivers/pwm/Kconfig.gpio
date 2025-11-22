@@ -1,0 +1,6 @@
+config PWM_GPIO
+    bool "gpio PWM Driver"
+    default y
+    depends on PWM
+    depends on GPIO
+    depends on DT_HAS_ZEPHYR_GPIO_PWM_ENABLED
