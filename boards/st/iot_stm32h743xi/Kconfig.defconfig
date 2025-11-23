@@ -3,7 +3,7 @@
 # Copyright (c) Charles Dias <charlesdias.cd@outlook.com>
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_IOT_STM32H743
+if BOARD_IOT_STM32H743XI
 
 if DISPLAY
 
@@ -24,4 +24,4 @@ endif # DISPLAY
 
 # source "boards/common/usb/Kconfig.cdc_acm_serial.defconfig"
 
-endif # BOARD_IOT_STM32H743
+endif # BOARD_IOT_STM32H743XI

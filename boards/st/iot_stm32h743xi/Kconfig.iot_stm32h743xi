@@ -1,5 +1,5 @@
 # Copyright (c) 2024 Charles Dias <charlesdias.cd@outlook.com>
 # SPDX-License-Identifier: Apache-2.0
 
-config BOARD_IOT_STM32H743
+config BOARD_IOT_STM32H743XI
 	select SOC_STM32H743XX

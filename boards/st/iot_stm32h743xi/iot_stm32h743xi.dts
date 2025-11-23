@@ -47,6 +47,53 @@
 			pwms = <&pwm0 0 PWM_MSEC(20)>; /* B */
 		};
 	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		wakeup1:button_wakeup {
+			label = "wakeup";
+			gpios = <&gpioa 0 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_WAKEUP>;
+		};
+		key0:button_0 {
+			label = "key0";
+			gpios = <&gpioh 3 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
+		};
+		key1:button_1 {
+			label = "key1";
+			gpios = <&gpioh 2 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_1>;
+		};
+		key2:button_2 {
+			label = "key2";
+			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_2>;
+		};
+	};
+};
+
+&sdmmc1 {
+	pinctrl-0 = <&sdmmc1_d0_pc8 &sdmmc1_d1_pc9
+		     &sdmmc1_d2_pc10 &sdmmc1_d3_pc11
+		     &sdmmc1_ck_pc12 &sdmmc1_cmd_pd2>;
+	pinctrl-names = "default";
+	// cd-gpios = <&gpiod 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+	disk-name = "SD";
+	status = "okay";
+};
+
+&spi2 {
+	pinctrl-0 = <&spi2_mosi_pb15 &spi2_miso_pb14 &spi2_sck_pb13>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&spi4 {
+	pinctrl-0 = <&spi4_mosi_pe6 &spi4_sck_pe2>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioe 3 GPIO_ACTIVE_HIGH>;
+	status = "okay";
 };
 
 &usbotg_fs {
@@ -54,8 +101,6 @@
 	pinctrl-names = "default";
 	status = "okay";
 };
-
-// #include <../boards/common/usb/cdc_acm_serial.dtsi>
 
 &usart1 {
 	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;

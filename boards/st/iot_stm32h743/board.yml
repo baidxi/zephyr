@@ -1,6 +1,0 @@
-board:
-  name: iot_stm32h743
-  full_name: STM32H743 iot Board
-  vendor: st
-  socs:
-    - name: stm32h743xx
