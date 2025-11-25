@@ -1,0 +1,9 @@
+# QST 6D Inertial Measurement Unit with Motion Co-Processor
+#
+# Copyright (c) 2021, juno
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# zephyr-keep-sorted-start
+source "drivers/sensor/qst/qmi8658/Kconfig"
+# zephyr-keep-sorted-stop

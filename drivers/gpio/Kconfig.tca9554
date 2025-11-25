@@ -1,0 +1,22 @@
+# TCA9554 GPIO configuration options
+
+# Copyright (c) 2024 Juno
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig GPIO_TCA9554
+	bool "TCA9554 I2C GPIO chip"
+	default y
+	depends on DT_HAS_TI_TCA9554_ENABLED
+	select I2C
+	help
+	  Enable driver for TCA9554 I2C GPIO chip.
+
+if GPIO_TCA9554
+
+config GPIO_TCA9554_INIT_PRIORITY
+	int "Init priority"
+	default 70
+	help
+	  Device driver initialization priority.
+
+endif # GPIO_TCA9554

@@ -38,6 +38,7 @@ add_subdirectory(ti)
 add_subdirectory(vishay)
 add_subdirectory(wsen)
 add_subdirectory(conntek)
+add_subdirectory(qst)
 # zephyr-keep-sorted-stop
 
 add_subdirectory_ifdef(CONFIG_A01NYUB a01nyub)

@@ -1,0 +1,6 @@
+board:
+  name: esp32c6_mini
+  full_name: ESP32-C6-MINI
+  vendor: waveshare
+  socs:
+  - name: esp32c6

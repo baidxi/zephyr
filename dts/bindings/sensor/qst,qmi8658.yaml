@@ -1,0 +1,14 @@
+# Copyright (c) 2025, juno
+# SPDX-License-Identifier: Apache-2.0
+
+description: QST QMI8658 6-Axis IMU
+
+compatible: "qst,qmi8658"
+
+include: i2c-device.yaml
+
+properties:
+  int-gpios:
+    type: phandle-array
+    required: false
+    description: Interrupt GPIO
