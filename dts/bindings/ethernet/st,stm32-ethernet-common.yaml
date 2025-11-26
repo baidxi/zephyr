@@ -20,3 +20,6 @@ properties:
     required: true
   phy-handle:
     required: true
+  reset-gpios:
+    required: false
+    type: phandle-array

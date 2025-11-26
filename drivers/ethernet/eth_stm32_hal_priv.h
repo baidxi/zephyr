@@ -14,6 +14,7 @@
 #include <zephyr/net/ethernet.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/types.h>
+#include <zephyr/drivers/gpio.h>
 #include <soc.h>
 
 #define DT_DRV_COMPAT st_stm32_ethernet
@@ -120,6 +121,7 @@ struct eth_stm32_hal_dev_cfg {
 	struct stm32_pclken pclken_ptp;
 #endif
 	const struct pinctrl_dev_config *pcfg;
+	const struct gpio_dt_spec rst_gpio;
 };
 
 /* Device run time data */

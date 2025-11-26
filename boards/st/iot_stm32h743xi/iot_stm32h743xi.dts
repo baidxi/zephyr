@@ -182,3 +182,28 @@
 &iwdg1 {
 	status = "okay";
 };
+
+&mac {
+	pinctrl-0 = <&eth_ref_clk_pa1
+				&eth_crs_dv_pa7 
+				&eth_txd1_pg14 
+				&eth_txd0_pg13 
+				&eth_rxd0_pc4 
+				&eth_tx_en_pg11
+				&eth_rxd1_pc5>;
+	pinctrl-names = "default";
+	phy-handle = <&eth0>;
+	phy-connection-type = "rmii";
+	reset-gpios = <&gpioh 5 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&mdio {
+	pinctrl-0 = <&eth_mdio_pa2 &eth_mdc_pc1>;
+	pinctrl-names = "default";
+	status = "okay";
+	eth0: ethernet-phy@0 {
+		compatible = "ethernet-phy";
+		reg = <0x00>;
+	};
+};

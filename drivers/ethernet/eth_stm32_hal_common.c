@@ -23,6 +23,7 @@
 
 #include "eth.h"
 #include "eth_stm32_hal_priv.h"
+#include "zephyr/drivers/gpio.h"
 
 LOG_MODULE_REGISTER(eth_stm32_hal, CONFIG_ETHERNET_LOG_LEVEL);
 
@@ -176,6 +177,14 @@ static int eth_initialize(const struct device *dev)
 	if (!device_is_ready(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE))) {
 		LOG_ERR("clock control device not ready");
 		return -ENODEV;
+	}
+
+	if (device_is_ready(cfg->rst_gpio.port))
+	{
+		gpio_pin_configure_dt(&cfg->rst_gpio, GPIO_OUTPUT_ACTIVE);
+		gpio_pin_set_dt(&cfg->rst_gpio, 0);
+		k_msleep(100);
+		gpio_pin_set_dt(&cfg->rst_gpio, 1);
 	}
 
 #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32n6_ethernet)
@@ -434,8 +443,9 @@ static const struct eth_stm32_hal_dev_cfg eth0_config = {
 	.pclken = STM32_CLOCK_INFO_BY_NAME(DT_INST_PARENT(0), stm_eth),
 	.pclken_tx = STM32_DT_INST_CLOCK_INFO_BY_NAME(0, mac_clk_tx),
 	.pclken_rx = STM32_DT_INST_CLOCK_INFO_BY_NAME(0, mac_clk_rx),
+	.rst_gpio = GPIO_DT_SPEC_GET(DT_NODELABEL(mac), reset_gpios),
 #if DT_INST_CLOCKS_HAS_NAME(0, mac_clk_ptp)
-	.pclken_ptp = STM32_DT_INST_CLOCK_INFO_BY_NAME(0, mac_clk_ptp),
+	.pclken_ptp = STM32_DT_INST_CLOCK_INFO_BY_NAME(0, mac_clk_ptp),zephyr/drivers/ethernet/eth_stm32_hal_common.c
 #endif
 #if DT_INST_CLOCKS_HAS_NAME(0, mac_clk)
 	.pclken_mac = {.bus = DT_INST_CLOCKS_CELL_BY_NAME(0, mac_clk, bus),
