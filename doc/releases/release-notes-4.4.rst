@@ -110,6 +110,13 @@ New APIs and options
   * :dtcompatible:`jedec,mspi-nor` now allows MSPI configuration of read, write and
     control commands separately via devicetree.
 
+* NVMEM
+
+  * Flash device support
+
+    * :kconfig:option:`CONFIG_NVMEM_FLASH`
+    * :kconfig:option:`CONFIG_NVMEM_FLASH_WRITE`
+
 * Settings
 
    * :kconfig:option:`CONFIG_SETTINGS_SAVE_SINGLE_SUBTREE_WITHOUT_MODIFICATION`
@@ -138,6 +145,11 @@ New Drivers
 ..
   Same as above, this will also be recomputed at the time of the release.
   Just link the driver, further details go in the binding description
+
+* Radio
+
+   * :dtcompatible:`radio-fem-two-ctrl-pins` (renamed from ``generic-fem-two-ctrl-pins``)
+   * :dtcompatible:`radio-gpio-coex` (renamed from ``gpio-radio-coex``)
 
 New Samples
 ***********
