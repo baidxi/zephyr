@@ -126,6 +126,7 @@ zephyr_library_sources_ifdef(CONFIG_GPIO_XLNX_AXI gpio_xlnx_axi.c)
 zephyr_library_sources_ifdef(CONFIG_GPIO_XLNX_PS gpio_xlnx_ps.c gpio_xlnx_ps_bank.c)
 zephyr_library_sources_ifdef(CONFIG_GPIO_XMC4XXX gpio_xmc4xxx.c)
 zephyr_library_sources_ifdef(CONFIG_LPGPIO_ESP32 gpio_esp32_lp.c)
+zephyr_library_sources_ifdef(CONFIG_GPIO_TCA9554 gpio_tca9554.c)
 # zephyr-keep-sorted-stop
 
 # zephyr-keep-sorted-start
@@ -143,5 +144,3 @@ if(CONFIG_GPIO_SC18IM704)
   zephyr_library_include_directories(${ZEPHYR_BASE}/drivers)
   zephyr_library_sources(gpio_sc18im704.c)
 endif()
-
-zephyr_sources(gpio_tca9554.c)
