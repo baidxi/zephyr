@@ -55,6 +55,11 @@ Ethernet
     * Removed ``mac-eeprom`` property from :dtcompatible:`atmel,sam-gmac` and
       :dtcompatible:`atmel,sam0-gmac`
 
+* The ``fixed-link`` property has been removed from :dtcompatible:`ethernet-phy`. Use
+  the new :dtcompatible:`ethernet-phy-fixed-link` compatible instead, if that functionality
+  is needed. There you need to specify the fixed link parameters using the ``default-speeds``
+  property (:github:`100454`).
+
 MDIO
 ====
 
@@ -110,7 +115,29 @@ STM32
 
   * ``CONFIG_POWER_SUPPLY_EXTERNAL_SOURCE``
 
+Shell
+=====
+
+* The :c:func:`shell_set_bypass` now requires a user data pointer to be passed. And accordingly the
+  :c:type:`shell_bypass_cb_t` now has a user data argument. (:github:`100311`)
+
+Stepper
+=======
+
+* For :dtcompatible:`adi,tmc2209`, the property ``msx-gpios`` is now replaced by ``m0-gpios`` and
+  ``m1-gpios`` for consistency with other step/dir stepper drivers.
+
+USB
+===
+
+  * :dtcompatible:`maxim,max3421e_spi` has been renamed to :dtcompatible:`maxim,max3421e-spi`.
+
 .. zephyr-keep-sorted-stop
+
+Video
+===
+
+* CONFIG_VIDEO_OV7670 is now gone and replaced by CONFIG_VIDEO_OV767X.  This allows supporting both the OV7670 and 0V7675.
 
 Bluetooth
 *********
@@ -147,8 +174,45 @@ Networking
   code cannot use POSIX APIs, then the relevant network API prefix needs to be added to the
   code calling a network API.
 
+Modem
+*****
+
+Modem HL78XX
+============
+
+* The Kconfig options related to HL78XX startup timing have been renamed in
+  :kconfig:option:`CONFIG_MODEM_HL78XX_DEV_*` as follows:
+
+  - ``MODEM_HL78XX_DEV_POWER_PULSE_DURATION`` → ``MODEM_HL78XX_DEV_POWER_PULSE_DURATION_MS``
+  - ``MODEM_HL78XX_DEV_RESET_PULSE_DURATION`` → ``MODEM_HL78XX_DEV_RESET_PULSE_DURATION_MS``
+  - ``MODEM_HL78XX_DEV_STARTUP_TIME`` → ``MODEM_HL78XX_DEV_STARTUP_TIME_MS``
+  - ``MODEM_HL78XX_DEV_SHUTDOWN_TIME`` → ``MODEM_HL78XX_DEV_SHUTDOWN_TIME_MS``
+
+* The default startup timing was changed from 1000 ms to 120 ms to improve
+  initialization reliability across all supported boards.
+
+  Applications depending on the previous defaults must update their configuration.
+
 Other subsystems
 ****************
+
+* Cache
+
+  * Use :kconfig:option:`CONFIG_CACHE_HAS_MIRRORED_MEMORY_REGIONS` instead of
+    :kconfig:option:`CONFIG_CACHE_DOUBLEMAP` as the former is more descriptive of the feature.
+
+JWT
+===
+
+* Previously deprecated ``CONFIG_JWT_SIGN_RSA_LEGACY`` is removed. This removal happens before
+  the usual deprecation period of 2 releases because it has been agreed (see :github:`97660`)
+  that Mbed TLS is an external module, so normal deprecation rules do not apply in this case.
+
+Libsbc
+======
+
+* Libsbc (sbc.c and sbc.h) is moved under the Bluetooth subsystem. The sbc.h is in
+  include/zephyr/bluetooth now.
 
 Modules
 *******
@@ -162,3 +226,8 @@ Trusted Firmware-M
 
 Architectures
 *************
+
+* Renamed ``CONFIG_ARCH_HAS_COHERENCE`` to :kconfig:option:`CONFIG_CACHE_CAN_SAY_MEM_COHERENCE` as
+  the feature is cache related so move it under cache.
+
+  * Use :c:func:`sys_cache_is_mem_coherent` instead of :c:func:`arch_mem_coherent`.
