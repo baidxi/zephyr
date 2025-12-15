@@ -1,0 +1,9 @@
+/ {
+    gpio_i2c {
+        compatible = "gpio,i2c";
+        sda-gpios = <&gpioe 2 GPIO_ACTIVE_LOW>;
+        scl-gpios = <&gpioe 3 GPIO_ACTIVE_LOW>;
+        clock_frequency = <10000000>;
+        status = "okay";
+    };
+};

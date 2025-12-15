@@ -40,4 +40,17 @@ config APP_VERSION_SHELL
 	help
 	  This shell command provides read access to application version information.
 
+config LRZSZ_SHELL
+	bool "lrzsz shell"
+
+if LRZSZ_SHELL
+
+config LRZSZ_SHELL_BUF_SIZE
+	int "lrzsz buf size"
+	default 1024
+	help
+		This shell command provides sz rz file transferm protocol.
+
+endif # LRZSZ_SHELL
+
 rsource "kernel_service/Kconfig"

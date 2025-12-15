@@ -1,0 +1,18 @@
+# Copyright (c) 2025, juno
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP MFRC522 RFID reader over SPI
+
+compatible: "nxp,mfrc522-spi"
+
+include: spi-device.yaml
+
+properties:
+  reset-gpios:
+    type: phandle-array
+    required: false
+    description: Reset pin
+  irq-gpios:
+    type: phandle-array
+    required: false
+    description: IRQ pin

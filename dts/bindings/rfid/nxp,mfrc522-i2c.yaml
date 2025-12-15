@@ -1,0 +1,14 @@
+# Copyright (c) 2025, juno
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP MFRC522 RFID reader over I2C
+
+compatible: "nxp,mfrc522-i2c"
+
+include: i2c-device.yaml
+
+properties:
+  reset-gpios:
+    type: phandle-array
+    required: false
+    description: Reset pin
