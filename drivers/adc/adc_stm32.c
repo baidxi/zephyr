@@ -35,7 +35,6 @@
 #ifdef CONFIG_ADC_STM32_DMA
 #include <zephyr/drivers/dma/dma_stm32.h>
 #include <zephyr/drivers/dma.h>
-#include <zephyr/toolchain.h>
 #include <stm32_ll_dma.h>
 #endif
 
@@ -54,7 +53,6 @@ LOG_MODULE_REGISTER(adc_stm32);
 
 #if defined(CONFIG_SOC_SERIES_STM32H7X) || defined(CONFIG_SOC_SERIES_STM32H7RSX)
 #include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
-#include <stm32_ll_system.h>
 #endif
 
 #include <zephyr/linker/linker-defs.h>
@@ -1699,6 +1697,13 @@ static int adc_stm32_init(const struct device *dev)
 	adc_stm32_calibrate(dev);
 	LL_ADC_REG_SetTriggerSource(adc, LL_ADC_REG_TRIG_SOFTWARE);
 #endif /* HAS_CALIBRATION */
+
+	/* If several ADCs are used and share a common clock property (for example ADC1/2 prescaler
+	 * value on STM32U5), none of them should be enabled when the clock is set.
+	 * To that end, make sure to disable ADC at the end of the initialization, it will be
+	 * enabled later when necessary anyway.
+	 */
+	adc_stm32_disable(adc);
 
 	adc_context_unlock_unconditionally(&data->ctx);
 
