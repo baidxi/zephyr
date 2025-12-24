@@ -34,6 +34,10 @@ Kernel
 Boards
 ******
 
+* m5stack_fire: Removed unused pinctrl entries for UART2, and updated the UART1
+  pin mapping from GPIO32/GPIO33 to GPIO16/GPIO17 to match the documented Grove
+  PORT.C wiring.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -261,6 +265,9 @@ Video
 =====
 
 * CONFIG_VIDEO_OV7670 is now gone and replaced by CONFIG_VIDEO_OV767X.  This allows supporting both the OV7670 and 0V7675.
+* :kconfig:option:`CONFIG_VIDEO_BUFFER_POOL_SZ_MAX` is replaced by
+  :kconfig:option:`CONFIG_VIDEO_BUFFER_POOL_HEAP_SIZE` which represent the
+  size in byte allocated for the whole video buffer pool.
 
 .. zephyr-keep-sorted-stop
 
