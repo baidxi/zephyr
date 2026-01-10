@@ -27,6 +27,8 @@ Build System
   C standard version.  If your toolchain does not support this standard you will
   need to use one of the existing and now deprecated options:
   :kconfig:option:`CONFIG_STD_C99` or :kconfig:option:`CONFIG_STD_C11`.
+* The ``full_name`` property of ``board``/``boards`` entries corresponding to new boards in
+  board.yml files is now required.
 
 Kernel
 ******
@@ -68,20 +70,25 @@ ADC
   update also corrects this issue, so users also need to update the value of this property in the
   devicetree accordingly. (:github:`100978`)
 
+* :dtcompatible:`st,stm32-adc` no longer has the ``resolutions`` property. It is replaced by the
+  ``st,adc-resolutions`` property. For STM32H7 devices in revision Y, it is no longer needed to
+  replace the 14 and 12-bit resolution values. This change may have an impact on power consumption
+  if 14 or 12-bit resolutions are used. Previously, power-optimized values were used, now the
+  standard values (not power-optimized but better accuracy) are used. No impact on other series.
+
 Controller Area Network (CAN)
 =============================
 
 * Removed ``CONFIG_CAN_MAX_FILTER``, ``CONFIG_CAN_MAX_STD_ID_FILTER``,
-  ``CONFIG_CAN_MAX_EXT_ID_FILTER``, and ``CONFIG_CAN_MAX_MB`` (:github:`100596`). These are replaced
-  by the following driver-specific Kconfig symbols, some of which have had their default value
-  increased to meet typical software needs:
+  ``CONFIG_CAN_MAX_EXT_ID_FILTER`` (:github:`100596`). These are replaced by the following
+  driver-specific Kconfig symbols, some of which have had their default value increased to meet
+  typical software needs:
 
   * :kconfig:option:`CONFIG_CAN_LOOPBACK_MAX_FILTERS` for :dtcompatible:`zephyr,can-loopback`
   * :kconfig:option:`CONFIG_CAN_MAX32_MAX_FILTERS` for :dtcompatible:`adi,max32-can`
   * :kconfig:option:`CONFIG_CAN_MCP2515_MAX_FILTERS` for :dtcompatible:`microchip,mcp2515`
   * :kconfig:option:`CONFIG_CAN_MCP251XFD_MAX_FILTERS` for :dtcompatible:`microchip,mcp251xfd`
   * :kconfig:option:`CONFIG_CAN_MCUX_FLEXCAN_MAX_FILTERS` for :dtcompatible:`nxp,flexcan`
-  * :kconfig:option:`CONFIG_CAN_MCUX_FLEXCAN_MAX_MB` for :dtcompatible:`nxp,flexcan`
   * :kconfig:option:`CONFIG_CAN_NATIVE_LINUX_MAX_FILTERS` for
     :dtcompatible:`zephyr,native-linux-can`
   * :kconfig:option:`CONFIG_CAN_RCAR_MAX_FILTERS` for :dtcompatible:`renesas,rcar-can`
@@ -92,6 +99,169 @@ Controller Area Network (CAN)
   * :kconfig:option:`CONFIG_CAN_STM32_FDCAN_MAX_EXT_ID_FILTERS` for :dtcompatible:`st,stm32-fdcan`
   * :kconfig:option:`CONFIG_CAN_STM32_FDCAN_MAX_STD_ID_FILTERS` for :dtcompatible:`st,stm32-fdcan`
   * :kconfig:option:`CONFIG_CAN_XMC4XXX_MAX_FILTERS` for :dtcompatible:`infineon,xmc4xxx-can-node`
+
+* Replaced Kconfig option ``CONFIG_CAN_MAX_MB`` for :dtcompatible:`nxp,flexcan` and
+  :dtcompatible:`nxp,flexcan-fd` with per-instance ``number-of-mb`` and
+  ``number-of-mb-fd`` devicetree properties (:github:`99483`).
+
+Counter
+=======
+
+* The NXP LPTMR driver (:dtcompatible:`nxp,lptmr`) has been updated to fix incorrect
+  prescaler and glitch filter configuration:
+
+  * The ``prescale-glitch-filter`` property valid range changed from ``[0-16]`` to ``[0-15]``.
+    The value ``16`` was invalid for pulse counter mode and has been removed. Device trees using
+    value ``16`` must be updated to use values in the range ``[0-15]``.
+
+  * A new boolean property ``prescale-glitch-filter-bypass`` has been introduced to explicitly
+    control prescaler/glitch filter bypass. Previously, setting ``prescale-glitch-filter = <0>``
+    implicitly enabled bypass mode, which was ambiguous.
+
+    In v4.4 and later, bypass is controlled only by the presence of
+    ``prescale-glitch-filter-bypass``. If the property is absent, the prescaler/glitch filter is
+    active and ``prescale-glitch-filter`` is applied.
+
+  * The prescaler/glitch filter behavior has been clarified:
+
+    * In Time Counter mode: prescaler divides the clock by ``2^(prescale-glitch-filter + 1)``
+    * In Pulse Counter mode: glitch filter recognizes change after ``2^prescale-glitch-filter``
+      rising edges (value 0 is not supported for glitch filtering)
+
+  * All in-tree device tree nodes have been updated to use ``prescale-glitch-filter-bypass;``
+    instead of ``prescale-glitch-filter = <0>;``. Out-of-tree boards should be updated
+    accordingly.
+
+  * If both ``prescale-glitch-filter-bypass`` and ``prescale-glitch-filter`` are set,
+    bypass mode takes precedence and the ``prescale-glitch-filter`` value is ignored.
+
+  Example migration:
+
+  .. code-block:: devicetree
+
+     /* Old (deprecated) */
+     lptmr0: counter@40040000 {
+         compatible = "nxp,lptmr";
+         /* Implicitly bypassed */
+         prescale-glitch-filter = <0>;
+     };
+
+     /* New (correct) */
+     lptmr0: counter@40040000 {
+         compatible = "nxp,lptmr";
+         /* Explicitly bypassed */
+         prescale-glitch-filter-bypass;
+     };
+
+  .. rubric:: Examples of using ``prescale-glitch-filter``
+
+  .. note::
+
+     ``prescale-glitch-filter-bypass`` is a boolean. If present, bypass is enabled. If absent,
+     bypass is disabled and ``prescale-glitch-filter`` is applied.
+
+     In Pulse Counter mode, ``prescale-glitch-filter = <0>`` is not a supported glitch filter
+     configuration. To request no filtering, use ``prescale-glitch-filter-bypass;``.
+
+  * Time Counter mode: divide the counter clock
+
+    In Time Counter mode the prescaler divides by ``2^(N + 1)``.
+
+    .. code-block:: devicetree
+
+       /* Divide by 2^(0+1) = 2 */
+       lptmr0: counter@40040000 {
+           compatible = "nxp,lptmr";
+           /* Time Counter mode */
+           timer-mode-sel = <0>;
+           clk-source = <1>;
+           clock-frequency = <32768>;
+           /* /2 */
+           prescale-glitch-filter = <0>;
+           resolution = <16>;
+       };
+
+       /* Divide by 2^(3+1) = 16 */
+       lptmr1: counter@40041000 {
+           compatible = "nxp,lptmr";
+           /* Time Counter mode */
+           timer-mode-sel = <0>;
+           clk-source = <1>;
+           clock-frequency = <32768>;
+           /* /16 */
+           prescale-glitch-filter = <3>;
+           resolution = <16>;
+       };
+
+  * Time Counter mode: explicit bypass (no division)
+
+    .. code-block:: devicetree
+
+       lptmr0: counter@40040000 {
+           compatible = "nxp,lptmr";
+           /* Time Counter mode */
+           timer-mode-sel = <0>;
+           clk-source = <1>;
+           clock-frequency = <32768>;
+           /* no prescaler */
+           prescale-glitch-filter-bypass;
+           resolution = <16>;
+       };
+
+  * Pulse Counter mode: glitch filtering
+
+    In Pulse Counter mode the glitch filter recognizes a change after ``2^N`` rising edges.
+    Value ``0`` is not supported for glitch filtering; use bypass if you want no filtering.
+
+    .. code-block:: devicetree
+
+       /* Recognize change after 2^2 = 4 rising edges */
+       lptmr0: counter@40040000 {
+           compatible = "nxp,lptmr";
+           /* Pulse Counter mode */
+           timer-mode-sel = <1>;
+           clk-source = <1>;
+           input-pin = <0>;
+           prescale-glitch-filter = <2>;
+           resolution = <16>;
+       };
+
+       /* No filtering (explicit bypass) */
+       lptmr1: counter@40041000 {
+           compatible = "nxp,lptmr";
+           /* Pulse Counter mode */
+           timer-mode-sel = <1>;
+           clk-source = <1>;
+           input-pin = <0>;
+           prescale-glitch-filter-bypass;
+           resolution = <16>;
+       };
+
+EEPROM
+======
+
+* Added :c:func:`eeprom_target_read_data()` and :c:func:`eeprom_target_write_data()` which takes an
+  offset and length and deprecated :c:func:`eeprom_target_program()` for the I2C EEPROM target driver.
+
+ESP32-S3
+========
+
+* The former ``espressif,esp32-lcd-cam`` binding has been restructured. The
+  LCD_CAM peripheral is now represented by a common ``lcd_cam`` node, with its
+  functional blocks split into two separate child nodes:
+
+    * :dtcompatible:`espressif,esp32-lcd-cam-dvp` compatible node for the DVP
+      (camera) input module, labeled as ``lcd_cam_dvp``.
+    * :dtcompatible:`espressif,esp32-lcd-cam-mipi-dbi` compatible node for the
+      LCD output module, labeled as ``lcd_cam_disp``.
+
+  The original :dtcompatible:`espressif,esp32-lcd-cam` compatible node keeps the
+  common pinctrl, clock, and interrupt properties, while camera-specific
+  properties have moved into the new ``lcd_cam_dvp`` child node.
+
+  Camera-related properties must be moved from ``lcd_cam`` node to the new
+  ``lcd_cam_dvp`` child node, and  ``zephyr,camera`` chosen property should
+  point to ``lcd_cam_dvp`` instead.
 
 Ethernet
 ========
@@ -283,6 +453,9 @@ Video
   :kconfig:option:`CONFIG_VIDEO_BUFFER_POOL_HEAP_SIZE` which represent the
   size in byte allocated for the whole video buffer pool.
 
+* The :dtcompatible:`ovti,ov2640` reset pin handling has been corrected, resulting in an inverted
+  active level compared to before, to match the active level expected by the sensor.
+
 .. zephyr-keep-sorted-stop
 
 Bluetooth
@@ -300,6 +473,20 @@ Bluetooth Host
   protection as of the Bluetooth Core Specification v6.2. Stored bonds that were generated using
   this method will be downgraded to unauthenticated when loaded from persistent storage, resulting
   in a lower security level.
+
+Bluetooth Audio
+===============
+
+* :c:func:`bt_bap_broadcast_assistant_discover` will now no longer perform reads of the remote BASS
+  receive states at the end of the procedure. Users will have to manually call
+  :c:func:`bt_bap_broadcast_assistant_read_recv_state` to read the existing receive states, if any,
+  prior to performing any operations. (:github:`91587`)
+
+Bluetooth Mesh
+==============
+
+* :kconfig:option:`CONFIG_BT_MESH_MODEL_VND_MSG_CID_FORCE` has been deprecated. Enabling it no
+  longer has any effect on message handling performance.
 
 Networking
 **********
