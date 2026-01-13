@@ -237,6 +237,44 @@ Counter
            resolution = <16>;
        };
 
+* The NXP i.MX GPT counter driver (:dtcompatible:`nxp,imx-gpt`) now
+  defaults to ``run-mode = "restart"`` instead of the previous hardcoded free-run behavior.
+
+  * **Previous behavior** (Zephyr ≤ 4.3): GPT counter always ran in free-run mode
+    (``enableFreeRun = true``). The counter continued counting without reset on compare events.
+
+  * **New behavior** (Zephyr ≥ 4.4): GPT counter defaults to restart mode unless explicitly
+    configured. A new ``run-mode`` devicetree property controls the behavior:
+
+    * ``"restart"`` (default): Counter resets to 0 when reaching Compare Channel 1 value
+    * ``"free-run"``: Counter continues counting without reset (previous behavior)
+
+  **Migration Required**: Out-of-tree boards and applications using GPT counters must add
+  ``run-mode = "free-run";`` to their devicetree nodes to preserve the previous behavior.
+
+  .. code-block:: devicetree
+
+     /* Out-of-tree boards: add this to preserve previous behavior */
+     gpt2: gpt@400f0000 {
+         compatible = "nxp,imx-gpt";
+         /* Explicitly restore Zephyr ≤4.3 behavior */
+         run-mode = "free-run";
+         /* ... other properties ... */
+     };
+
+  .. warning::
+
+     The driver uses Compare Channel 1 for Zephyr counter alarm functionality. When using
+     ``run-mode = "restart"``, setting alarms will cause the counter to reset at the alarm
+     compare point. If your application relies on alarms and continuous counting, you must
+     use ``run-mode = "free-run"``.
+
+  .. note::
+
+     This change standardizes NXP counter driver run mode configuration.
+     GPT now uses explicit devicetree properties rather than hardcoded values, allowing
+     per-instance customization.
+
 EEPROM
 ======
 
@@ -507,6 +545,23 @@ Networking
   code cannot use POSIX APIs, then the relevant network API prefix needs to be added to the
   code calling a network API.
 
+* The enum for HTTP server transaction status has been renamed from ``http_data_status``
+  to ``http_transaction_status`` to better reflect its purpose. The enum values have also been
+  renamed as follows:
+
+  - ``HTTP_SERVER_DATA_ABORTED`` → ``HTTP_SERVER_TRANSACTION_ABORTED``
+  - ``HTTP_SERVER_DATA_MORE`` → ``HTTP_SERVER_REQUEST_DATA_MORE``
+  - ``HTTP_SERVER_DATA_FINAL`` → ``HTTP_SERVER_REQUEST_DATA_FINAL``
+
+  The handler callback type for dynamic resources has been updated accordingly to use the new enum
+  and its renamed values. Applications using dynamic HTTP resources must update their handler
+  callbacks to use the new enum and handle the renamed values.
+
+* The HTTP server now reports for dynamic resources the ``HTTP_SERVER_TRANSACTION_COMPLETE``
+  status when the response has been sent completely to the client. Applications should now also
+  handle this status in the handler callback to properly reset resource state after successful
+  response transmission.
+
 Modem
 *****
 
@@ -528,6 +583,8 @@ Modem HL78XX
 
 Other subsystems
 ****************
+* The DAP subsystem initialization and configuration has changed. Please take a look at
+  :zephyr:code-sample:`cmsis-dap` sample on how to initialize Zephyr DAP Link with USB backend.
 
 * Cache
 
@@ -554,6 +611,14 @@ Tracing
   doubles the space used for event IDs but allows 65,535 events instead of 255.
 
   With this change, existing CTF traces with 8-bit IDs won't be compatible.
+
+Serial
+========
+
+* pl011 UART driver: Remove Read Status Register (RSR) error handling
+  from :c:func:`pl011_poll_in`. RSR handling is already implemented in
+  :c:func:`pl011_err_check`, which is the appropriate place to detect,
+  and report receive error conditions. (:github:`101715`)
 
 Settings
 ========

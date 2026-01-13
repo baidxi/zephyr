@@ -138,6 +138,13 @@ New APIs and options
 
     * Introduced Alert Notification Service (ANS) :kconfig:option:`CONFIG_BT_ANS`
 
+* Build system
+
+  * Sysbuild
+
+    * Added :kconfig:option:`SB_CONFIG_MERGED_HEX_FILES` which allows generating
+      :ref:`merged hex files <sysbuild_merged_hex_files>`.
+
 * Ethernet
 
   * Driver MAC address configuration with support for NVMEM cell.
@@ -175,6 +182,12 @@ New APIs and options
 
     * :kconfig:option:`CONFIG_NVMEM_FLASH`
     * :kconfig:option:`CONFIG_NVMEM_FLASH_WRITE`
+
+* Networking
+
+  * Wi-Fi
+
+    * Add support for Wi-Fi Direct (P2P) mode.
 
 * PWM
 
@@ -271,6 +284,12 @@ Libraries / Subsystems
 * LoRa/LoRaWAN
 
    * :c:func:`lora_airtime`
+
+* Mbed TLS
+
+  * Added :kconfig:option:`CONFIG_MBEDTLS_VERSION_C` to simplify the
+    export of version information from Mbed TLS. If enabled, the
+    :c:func:`mbedtls_version_get_number()` function will be available.
 
 Other notable changes
 *********************
