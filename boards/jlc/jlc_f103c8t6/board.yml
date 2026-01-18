@@ -1,0 +1,6 @@
+board:
+  name: jlc_f103c8t6
+  full_name: JLC F103C8T6
+  vendor: jlc
+  socs:
+    - name: stm32f103xb
