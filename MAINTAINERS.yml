@@ -1326,6 +1326,7 @@ Documentation Infrastructure:
     - boards/shields/canis_canpico/
     - boards/shields/mcp2515/
     - boards/shields/mikroe_can_fd_6_click/
+    - boards/shields/mikroe_mcp251xfd_click/
     - boards/shields/tcan4550evm/
     - doc/connectivity/canbus/
     - doc/hardware/peripherals/can/
@@ -3406,11 +3407,14 @@ Microchip RISC-V Platforms:
   collaborators:
     - kgugala
     - tgorochowik
+    - con-pax
   files:
     - boards/microchip/m2gl025_miv/
     - boards/microchip/mpfs_icicle/
+    - boards/microchip/pic64gx_curiosity_kit/
     - dts/riscv/microchip/
     - soc/microchip/miv/
+    - soc/microchip/pic64/
   labels:
     - "platform: Microchip RISC-V"
 

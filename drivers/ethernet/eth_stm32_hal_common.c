@@ -20,6 +20,7 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/__assert.h>
 #include <ethernet/eth_stats.h>
+#include <stdint.h>
 
 #include "eth.h"
 #include "eth_stm32_hal_priv.h"
@@ -187,9 +188,10 @@ static int eth_initialize(const struct device *dev)
 				(clock_control_subsys_t)&cfg->pclken_mac);
 #endif
 
-	if (ret) {
-		LOG_ERR("Failed to enable ethernet clock");
-		return -EIO;
+		if (ret != 0) {
+			LOG_ERR("Failed to setup ethernet clock #%zu", n);
+			return -EIO;
+		}
 	}
 
 	/* configure pinmux */
@@ -411,6 +413,10 @@ static void eth0_irq_config(void)
 }
 
 PINCTRL_DT_INST_DEFINE(0);
+
+static const struct stm32_pclken eth0_pclken[] = STM32_DT_CLOCKS(DT_INST_PARENT(0));
+
+#define ETH_STM32_HAS_PTP_CLOCK	DT_CLOCKS_HAS_NAME(DT_INST_PARENT(0), mac_clk_ptp)
 
 static const struct eth_stm32_hal_dev_cfg eth0_config = {
 	.config_func = eth0_irq_config,
