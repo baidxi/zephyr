@@ -355,6 +355,15 @@ Display
   :kconfig:option:`SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_RGB_565X` and :kconfig:option:`ST7789V_RGB565X`
   respectively. (:github:`99276`)
 
+* ``CONFIG_SSD1327`` symbol has been renamed to :kconfig:option:`CONFIG_SSD1327_5` to include ``SSD1325`` as well.
+
+* ``solomon,ssd1327fb`` devicetree compatible has been renamed :dtcompatible:`solomon,ssd1327`
+  to harmonize with other display controllers and eliminate the zephyr-irrelevant ``fb`` suffix.
+
+* ``solomon,ssd1306fb`` and ``solomon,ssd1309fb`` devicetree compatibles has been renamed
+  :dtcompatible:`solomon,ssd1306` and :dtcompatible:`solomon,ssd1309` respectively,
+  to harmonize with other display controllers and eliminate the zephyr-irrelevant ``fb`` suffix.
+
 DMA
 ===
 
@@ -695,6 +704,9 @@ Networking
   handle this status in the handler callback to properly reset resource state after successful
   response transmission.
 
+* The protocol version passed to :c:func:`zsock_socket` when creating a secure socket is now
+  enforced as the minimum TLS version to use for the TLS session.
+
 Modem
 *****
 
@@ -741,6 +753,15 @@ Other subsystems
 
   * Use :kconfig:option:`CONFIG_CACHE_HAS_MIRRORED_MEMORY_REGIONS` instead of
     :kconfig:option:`CONFIG_CACHE_DOUBLEMAP` as the former is more descriptive of the feature.
+
+Flash
+=====
+
+* Previously deprecated ``CONFIG_FLASH_AREA_CHECK_INTEGRITY_MBEDTLS`` is now
+  removed.
+
+* ``CONFIG_FLASH_AREA_CHECK_INTEGRITY_PSA`` is also removed since there is
+  now no alternative for the crypto library backend.
 
 JWT
 ===
@@ -802,3 +823,24 @@ Architectures
   the feature is cache related so move it under cache.
 
   * Use :c:func:`sys_cache_is_mem_coherent` instead of :c:func:`arch_mem_coherent`.
+
+* :kconfig:option:`CONFIG_RISCV` now requires, that the :dtcompatible:`riscv` is present in the
+  devicetree.
+
+* The ``riscv,isa-base`` and  ``riscv,isa-extensions`` devicetree properties of
+  :dtcompatible:`riscv` are now used to set the Base Integer Instruction Set and the RISC-V
+  extensions. They are no longer set by the SoC. The devicetree property ``riscv,isa`` has been
+  deprecated in favor of the two new properties. (:github:`97540`)
+
+  * ``CONFIG_SOC_CV64A6_IMAFDC`` and ``CONFIG_SOC_CV64A6_IMAC`` are now combined into
+    :kconfig:option:`CONFIG_SOC_CV64A6`, as the RISC-V extensions are now set by the devicetree.
+
+  * The following options of :kconfig:option:`CONFIG_SOC_SERIES_AE350` had been removed, as they
+    now can be set via the devicetree:
+
+    * ``CONFIG_RV32I_CPU``
+    * ``CONFIG_RV32E_CPU``
+    * ``CONFIG_RV64I_CPU``
+    * ``CONFIG_NO_FPU``
+    * ``CONFIG_SINGLE_PRECISION_FPU``
+    * ``CONFIG_DOUBLE_PRECISION_FPU``

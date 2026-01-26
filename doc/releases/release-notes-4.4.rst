@@ -169,6 +169,11 @@ New APIs and options
       generating slot 1 images automatically in sysbuild projects when using MCUboot in
       direct-xip mode.
 
+* Display
+
+  * :kconfig:option:`SSD1325_DEFAULT_CONTRAST`
+  * :kconfig:option:`SSD1325_CONV_BUFFER_LINES`
+
 * Ethernet
 
   * Driver MAC address configuration with support for NVMEM cell.
@@ -243,6 +248,19 @@ New APIs and options
 
   * :kconfig:option:`CONFIG_TIMEUTIL_APPLY_SKEW`
 
+* Utilities
+
+  * :abbr:`COBS (Consistent Overhead Byte Stuffing)` streaming support
+
+    * :c:struct:`cobs_decoder`
+    * :c:func:`cobs_decoder_init`
+    * :c:func:`cobs_decoder_write`
+    * :c:func:`cobs_decoder_close`
+    * :c:struct:`cobs_encoder`
+    * :c:func:`cobs_encoder_init`
+    * :c:func:`cobs_encoder_write`
+    * :c:func:`cobs_encoder_close`
+
 * Video
 
   * :kconfig:option:`CONFIG_VIDEO_BUFFER_POOL_HEAP_SIZE`
@@ -286,6 +304,10 @@ New Drivers
 
   * :dtcompatible:`radio-fem-two-ctrl-pins` (renamed from ``generic-fem-two-ctrl-pins``)
   * :dtcompatible:`radio-gpio-coex` (renamed from ``gpio-radio-coex``)
+
+* Display
+
+  * :dtcompatible:`solomon,ssd1325`
 
 New Samples
 ***********

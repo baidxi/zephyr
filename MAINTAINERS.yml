@@ -1181,7 +1181,6 @@ Display drivers:
   maintainers:
     - JarmouniA
   collaborators:
-    - jfischer-no
     - danieldegrasse
     - VynDragon
     - KATE-WANG-NXP
@@ -1460,6 +1459,7 @@ Documentation Infrastructure:
     - nordic-krch
   collaborators:
     - Holt-Sun
+    - FelixWang47831
   files:
     - drivers/counter/
     - include/zephyr/drivers/counter.h
@@ -1519,6 +1519,7 @@ Documentation Infrastructure:
     - lgirdwood
     - iuliana-prodan
     - dbaluta
+    - abonislawski
   files:
     - drivers/dai/
     - doc/hardware/peripherals/audio/dai.rst
@@ -3060,6 +3061,7 @@ Intel Platforms (Xtensa):
     - jxstelter
     - marcinszkudlinski
     - nashif
+    - abonislawski
   files:
     - boards/intel/adsp/
     - soc/intel/intel_adsp/
@@ -4326,6 +4328,16 @@ Power management:
   tests:
     - pm
 
+QNX Hypervisor Platforms:
+  status: maintained
+  maintainers:
+    - soburi
+  files:
+    - boards/blackberry/qnxhv_vm/
+    - soc/blackberry/qnxhv_vm/
+  labels:
+    - "platform: QNX Hypervisor"
+
 "Quicklogic Platform":
   status: odd fixes
   files:
@@ -4435,6 +4447,7 @@ Raspberry Pi Pico Platforms:
     - boards/pimoroni/pico_plus2/
     - boards/seeed/xiao_rp2040/
     - boards/sparkfun/pro_micro_rp2040/
+    - boards/sparkfun/rp2040_mikrobus/
     - boards/waveshare/rp2040_zero/
     - boards/wiznet/w5500_evb_pico*/
     - dts/arm/raspberrypi/rpi_pico/
@@ -5265,6 +5278,7 @@ Twister:
     - gchwier
     - LukaszMrugala
     - KamilxPaszkiet
+    - fundakol
   files:
     - scripts/twister
     - scripts/schemas/twister/
