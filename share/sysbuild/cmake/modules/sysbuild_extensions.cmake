@@ -146,9 +146,9 @@ function(sysbuild_cache)
     endif()
   endforeach()
   if(DEFINED BOARD_REVISION)
-    list(APPEND sysbuild_cache_strings "BOARD:STRING=${BOARD}@${BOARD_REVISION}${BOARD_QUALIFIERS}\n")
+    list(APPEND sysbuild_cache_strings "BOARD:STRING=${BOARD}@${BOARD_REVISION}/${BOARD_QUALIFIERS}\n")
   else()
-    list(APPEND sysbuild_cache_strings "BOARD:STRING=${BOARD}${BOARD_QUALIFIERS}\n")
+    list(APPEND sysbuild_cache_strings "BOARD:STRING=${BOARD}/${BOARD_QUALIFIERS}\n")
   endif()
   list(APPEND sysbuild_cache_strings "SYSBUILD_NAME:STRING=${SB_CACHE_APPLICATION}\n")
 
@@ -743,8 +743,14 @@ function(ExternalZephyrProject_Cmake)
     )
   endif()
   load_cache(IMAGE ${ZCMAKE_APPLICATION} BINARY_DIR ${BINARY_DIR})
-  import_kconfig(CONFIG_ ${BINARY_DIR}/zephyr/.config TARGET ${ZCMAKE_APPLICATION})
-  zephyr_dt_import(EDT_PICKLE_FILE ${BINARY_DIR}/zephyr/edt.pickle TARGET ${ZCMAKE_APPLICATION})
+
+  if(EXISTS ${BINARY_DIR}/zephyr/.config)
+    import_kconfig(CONFIG_ ${BINARY_DIR}/zephyr/.config TARGET ${ZCMAKE_APPLICATION})
+  endif()
+
+  if(EXISTS ${BINARY_DIR}/zephyr/edt.pickle)
+    zephyr_dt_import(EDT_PICKLE_FILE ${BINARY_DIR}/zephyr/edt.pickle TARGET ${ZCMAKE_APPLICATION})
+  endif()
 
   # This custom target informs CMake how the BYPRODUCTS are generated if a target
   # depends directly on the BYPRODUCT instead of depending on the image target.
