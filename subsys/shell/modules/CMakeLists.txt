@@ -25,3 +25,7 @@ zephyr_sources_ifdef(
   CONFIG_LRZSZ_SHELL
   lszrz_service.c
 )
+zephyr_sources_ifdef(
+  CONFIG_ZYCLICTEST_SHELL
+  zyclictest_service.c
+)

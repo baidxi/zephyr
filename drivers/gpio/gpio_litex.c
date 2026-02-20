@@ -46,9 +46,6 @@ BUILD_ASSERT(CONFIG_LITEX_CSR_DATA_WIDTH == 32, "CONFIG_LITEX_CSR_DATA_WIDTH mus
 			GPIO_OUTPUT_INIT_LOW | GPIO_OUTPUT_INIT_HIGH | \
 			GPIO_ACTIVE_LOW | GPIO_ACTIVE_HIGH)
 
-#define GPIO_LOW        0
-#define GPIO_HIGH       1
-
 #define LOG_LEVEL CONFIG_GPIO_LOG_LEVEL
 LOG_MODULE_REGISTER(gpio_litex);
 
@@ -65,7 +62,6 @@ struct gpio_litex_cfg {
 
 struct gpio_litex_data {
 	struct gpio_driver_data common;
-	const struct device *dev;
 	sys_slist_t cb;
 };
 
@@ -83,13 +79,6 @@ static inline void set_bit(mem_addr_t reg_addr, uint32_t bit, bool val)
 	WRITE_BIT(reg, bit, val);
 
 	litex_write32(reg, reg_addr);
-}
-
-static inline uint32_t get_bit(mem_addr_t reg_addr, int reg_size, uint32_t bit)
-{
-	uint32_t reg = litex_read32(reg_addr);
-
-	return IS_BIT_SET(reg, bit);
 }
 
 static inline uint32_t get_port_out(const struct gpio_litex_cfg *gpio_config)
@@ -363,7 +352,7 @@ static DEVICE_API(gpio, gpio_litex_driver_api) = {
 		     "Number of gpios exceeds what can be handled");				   \
                                                                                                    \
 	static const struct gpio_litex_cfg gpio_litex_cfg_##n = {                                  \
-		.common = { .port_pin_mask = GPIO_PORT_PIN_MASK_FROM_DT_INST(n) },                 \
+		.common = GPIO_COMMON_CONFIG_FROM_DT_INST(n),                                      \
 		.oe_addr = DT_INST_REG_ADDR_BY_NAME_OR(n, oe, 0),                                  \
 		.in_addr = DT_INST_REG_ADDR_BY_NAME_OR(n, in, 0),                                  \
 		.out_addr = DT_INST_REG_ADDR_BY_NAME_OR(n, out, 0),                                \

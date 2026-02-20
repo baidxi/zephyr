@@ -192,6 +192,16 @@ def _node_reg_addr(node, index, unit):
     return node.regs[int(index)].addr >> _dt_units_to_scale(unit)
 
 
+def _node_unit_addr(node, unit):
+    if not node:
+        return 0
+
+    if not node.unit_addr:
+        return 0
+
+    return node.unit_addr >> _dt_units_to_scale(unit)
+
+
 def _node_reg_addr_by_name(node, name, unit):
     if not node:
         return 0
@@ -374,13 +384,10 @@ def dt_chosen_reg(kconf, name, chosen, index=0, unit=None):
         return hex(_dt_chosen_reg_addr(kconf, chosen, index, unit))
 
 
-def _dt_chosen_partition_addr(kconf, chosen, index=0, unit=None):
+def _dt_chosen_partition_addr(kconf, chosen, unit=None):
     """
-    This function takes a 'chosen' property and treats that property as a path
-    to an EDT node.  If it finds an EDT node, it will look to see if that
-    node has a register, and if that node has a grandparent that has a register
-    at the given 'index'. The addition of both addresses will be returned, if
-    not, we return 0.
+    This function takes a 'chosen' property and treats that property as a path to an EDT node.
+    If it finds an EDT node, it will return the unit address of that node, and if not, we return 0.
 
     The function will divide the value based on 'unit':
         None        No division
@@ -395,25 +402,19 @@ def _dt_chosen_partition_addr(kconf, chosen, index=0, unit=None):
         return 0
 
     node = edt.chosen_node(chosen)
-    if not node:
-        return 0
 
-    p_node = node.parent
-    if not p_node:
-        return 0
-
-    return _node_reg_addr(p_node.parent, index, unit) + _node_reg_addr(node, 0, unit)
+    return _node_unit_addr(node, unit)
 
 
 def dt_chosen_partition_addr(kconf, name, chosen, index=0, unit=None):
     """
     This function just routes to the proper function and converts
-    the result to either a string int or string hex value.
+    the result to either a string int or string hex value. The index value is not used.
     """
     if name == "dt_chosen_partition_addr_int":
-        return str(_dt_chosen_partition_addr(kconf, chosen, index, unit))
+        return str(_dt_chosen_partition_addr(kconf, chosen, unit))
     if name == "dt_chosen_partition_addr_hex":
-        return hex(_dt_chosen_partition_addr(kconf, chosen, index, unit))
+        return hex(_dt_chosen_partition_addr(kconf, chosen, unit))
 
 
 def _dt_node_reg_addr(kconf, path, index=0, unit=None):
@@ -973,25 +974,61 @@ def dt_nodelabel_enabled_with_compat(kconf, _, label, compat):
 
     return "n"
 
-
-def dt_nodelabel_array_prop_has_val(kconf, _, label, prop, val):
+def _dt_node_array_prop_has_val_generic(node_search_function, search_arg, prop, val):
     """
-    This function looks for a node with node label 'label'.
-    If the node exists, it checks if the node node has a property
+    This function takes the 'node_search_function' and uses it to search for
+    a node with 'search_arg' and checks if the node has a property
+    'prop' of type "array". If so, and the property contains
+    an element equal to the integer 'val', it returns "y".
+    If the property is of type "string-array", it checks if 'val' is
+    one of the strings in the array, returning "y" if so.
+    Otherwise, it returns "n".
+    """
+    try:
+        node = node_search_function(search_arg)
+    except edtlib.EDTError:
+        return "n"
+
+    if node is None or prop not in node.props:
+        return "n"
+
+    if node.props[prop].type == "array":
+        return "y" if int(val, base=0) in node.props[prop].val else "n"
+
+    if node.props[prop].type == "string-array":
+        return "y" if val in node.props[prop].val else "n"
+
+    return "n"
+
+def dt_node_array_prop_has_val(kconf, _, path, prop, val):
+    """
+    This function looks for a node at 'path'.
+    If the node exists, it checks if the node has a property
     'prop' with type "array". If so, and the property contains
     an element equal to the integer 'val', it returns "y".
+    If the property is of type "string-array", it checks if 'val' is
+    one of the strings in the array, returning "y" if so.
     Otherwise, it returns "n".
     """
     if doc_mode or edt is None:
         return "n"
 
-    node = edt.label2node.get(label)
+    return _dt_node_array_prop_has_val_generic(edt.get_node, path, prop, val)
 
-    if not node or (prop not in node.props) or (node.props[prop].type != "array"):
+def dt_nodelabel_array_prop_has_val(kconf, _, label, prop, val):
+    """
+    This function looks for a node with node label 'label'.
+    If the node exists, it checks if the node has a property
+    'prop' with type "array". If so, and the property contains
+    an element equal to the integer 'val', it returns "y".
+    If the property is of type "string-array", it checks if 'val' is
+    one of the strings in the array, returning "y" if so.
+    Otherwise, it returns "n".
+    """
+    if doc_mode or edt is None:
         return "n"
-    else:
-        return "y" if int(val, base=0) in node.props[prop].val else "n"
 
+    return _dt_node_array_prop_has_val_generic(edt.label2node.get, label, prop, val)
 
 def dt_nodelabel_path(kconf, _, label):
     """
@@ -1217,6 +1254,7 @@ functions = {
         "dt_nodelabel_path": (dt_nodelabel_path, 1, 1),
         "dt_node_parent": (dt_node_parent, 1, 1),
         "dt_nodelabel_array_prop_has_val": (dt_nodelabel_array_prop_has_val, 3, 3),
+        "dt_node_array_prop_has_val": (dt_node_array_prop_has_val, 3, 3),
         "dt_gpio_hogs_enabled": (dt_gpio_hogs_enabled, 0, 0),
         "dt_chosen_partition_addr_int": (dt_chosen_partition_addr, 1, 3),
         "dt_chosen_partition_addr_hex": (dt_chosen_partition_addr, 1, 3),
