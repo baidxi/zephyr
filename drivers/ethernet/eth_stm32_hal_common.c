@@ -25,7 +25,6 @@
 
 #include "eth.h"
 #include "eth_stm32_hal_priv.h"
-#include "zephyr/drivers/gpio.h"
 
 LOG_MODULE_REGISTER(eth_stm32_hal, CONFIG_ETHERNET_LOG_LEVEL);
 
@@ -118,39 +117,16 @@ static int eth_initialize(const struct device *dev)
 	ETH_HandleTypeDef *heth = &dev_data->heth;
 	int ret = 0;
 
-	if (device_is_ready(cfg->rst_gpio.port))
-	{
-		gpio_pin_configure_dt(&cfg->rst_gpio, GPIO_OUTPUT_ACTIVE);
-		gpio_pin_set_dt(&cfg->rst_gpio, 0);
-		k_msleep(100);
-		gpio_pin_set_dt(&cfg->rst_gpio, 1);
-	}
-
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32n6_ethernet)
-	/* RISAF Configuration */
-	RISAF_Config();
-#endif
-
-	/* enable clock */
-	ret = clock_control_on(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
-		(clock_control_subsys_t)&cfg->pclken);
-	ret |= clock_control_on(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
-		(clock_control_subsys_t)&cfg->pclken_tx);
-	ret |= clock_control_on(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
-		(clock_control_subsys_t)&cfg->pclken_rx);
-#if DT_INST_CLOCKS_HAS_NAME(0, mac_clk_ptp)
-	ret |= clock_control_on(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
-		(clock_control_subsys_t)&cfg->pclken_ptp);
-#endif
-#if DT_INST_CLOCKS_HAS_NAME(0, eth_ker)
-	ret |= clock_control_configure(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
-				       (clock_control_subsys_t)&cfg->pclken_ker,
-				       NULL);
-#endif
-#if DT_INST_CLOCKS_HAS_NAME(0, mac_clk)
-	ret |= clock_control_on(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
-				(clock_control_subsys_t)&cfg->pclken_mac);
-#endif
+	/* Enable clocks */
+	for (size_t n = 0; n < cfg->pclken_cnt; n++) {
+		if (n == cfg->kclk_sel_idx) {
+			ret = clock_control_configure(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
+						      (clock_control_subsys_t)&cfg->pclken[n],
+						      NULL);
+		} else {
+			ret = clock_control_on(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
+					       (clock_control_subsys_t)&cfg->pclken[n]);
+		}
 
 		if (ret != 0) {
 			LOG_ERR("Failed to setup ethernet clock #%zu", n);
@@ -406,20 +382,16 @@ static const struct stm32_pclken eth0_pclken[] = STM32_DT_CLOCKS(DT_INST_PARENT(
 
 static const struct eth_stm32_hal_dev_cfg eth0_config = {
 	.config_func = eth0_irq_config,
-	.pclken = STM32_CLOCK_INFO_BY_NAME(DT_INST_PARENT(0), stm_eth),
-	.pclken_tx = STM32_DT_INST_CLOCK_INFO_BY_NAME(0, mac_clk_tx),
-	.pclken_rx = STM32_DT_INST_CLOCK_INFO_BY_NAME(0, mac_clk_rx),
-	.rst_gpio = GPIO_DT_SPEC_GET(DT_NODELABEL(mac), reset_gpios),
-#if DT_INST_CLOCKS_HAS_NAME(0, mac_clk_ptp)
-	.pclken_ptp = STM32_DT_INST_CLOCK_INFO_BY_NAME(0, mac_clk_ptp),zephyr/drivers/ethernet/eth_stm32_hal_common.c
-#endif
-#if DT_INST_CLOCKS_HAS_NAME(0, mac_clk)
-	.pclken_mac = {.bus = DT_INST_CLOCKS_CELL_BY_NAME(0, mac_clk, bus),
-		       .enr = DT_INST_CLOCKS_CELL_BY_NAME(0, mac_clk, bits)},
-#endif
-#if DT_INST_CLOCKS_HAS_NAME(0, eth_ker)
-	.pclken_ker = {.bus = DT_INST_CLOCKS_CELL_BY_NAME(0, eth_ker, bus),
-		       .enr = DT_INST_CLOCKS_CELL_BY_NAME(0, eth_ker, bits)},
+	.pclken = eth0_pclken,
+	.pclken_cnt = DT_NUM_CLOCKS(DT_INST_PARENT(0)),
+	.kclk_sel_idx = COND_CODE_1(DT_PROP_HAS_NAME(DT_INST_PARENT(0), clocks, eth_ker),
+				    (DT_PHA_ELEM_IDX_BY_NAME(DT_INST_PARENT(0), clocks, eth_ker)),
+				    (UINT8_MAX)),
+#ifdef CONFIG_PTP_CLOCK_STM32_HAL
+	/* If no PTP clock is defined, bus clock ("stm-eth") gives the ethernet clock rate */
+	.rate_pclken_idx = DT_PHA_ELEM_IDX_BY_NAME(DT_INST_PARENT(0), clocks,
+						   COND_CODE_1(ETH_STM32_HAS_PTP_CLOCK,
+							       (mac_clk_ptp), (stm_eth))),
 #endif
 	.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(0),
 	.mac_cfg = NET_ETH_MAC_DT_INST_CONFIG_INIT(0),

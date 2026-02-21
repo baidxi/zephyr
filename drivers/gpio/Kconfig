@@ -210,5 +210,3 @@ source "drivers/gpio/Kconfig.xmc4xxx"
 # zephyr-keep-sorted-stop
 
 endif # GPIO
-
-source "drivers/gpio/Kconfig.tca9554"

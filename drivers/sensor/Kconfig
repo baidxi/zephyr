@@ -94,7 +94,6 @@ source "drivers/sensor/aosong/Kconfig"
 source "drivers/sensor/asahi_kasei/Kconfig"
 source "drivers/sensor/bosch/Kconfig"
 source "drivers/sensor/broadcom/Kconfig"
-source "drivers/sensor/conntek/Kconfig"
 source "drivers/sensor/espressif/Kconfig"
 source "drivers/sensor/everlight/Kconfig"
 source "drivers/sensor/honeywell/Kconfig"
@@ -125,7 +124,6 @@ source "drivers/sensor/tdk/Kconfig"
 source "drivers/sensor/ti/Kconfig"
 source "drivers/sensor/vishay/Kconfig"
 source "drivers/sensor/wsen/Kconfig"
-source "drivers/sensor/qst/Kconfig"
 # zephyr-keep-sorted-stop
 
 # zephyr-keep-sorted-start

@@ -14,7 +14,6 @@
 #include <zephyr/net/ethernet.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/types.h>
-#include <zephyr/drivers/gpio.h>
 #include <soc.h>
 
 #define DT_DRV_COMPAT st_stm32_ethernet
@@ -114,7 +113,6 @@ struct eth_stm32_hal_dev_cfg {
 	uint8_t rate_pclken_idx;
 #endif
 	const struct pinctrl_dev_config *pcfg;
-	const struct gpio_dt_spec rst_gpio;
 	const struct net_eth_mac_config mac_cfg;
 };
 

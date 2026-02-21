@@ -97,7 +97,6 @@ source "drivers/pwm/Kconfig.xec"
 source "drivers/pwm/Kconfig.xlnx"
 source "drivers/pwm/Kconfig.xmc4xxx_ccu4"
 source "drivers/pwm/Kconfig.xmc4xxx_ccu8"
-source "drivers/pwm/Kconfig.gpio"
 # zephyr-keep-sorted-stop
 
 endif # PWM

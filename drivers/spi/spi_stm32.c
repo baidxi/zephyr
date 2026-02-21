@@ -346,13 +346,8 @@ static int spi_dma_move_rx_buffers(const struct device *dev, size_t len)
 	struct spi_stm32_data *data = dev->data;
 	size_t dma_segment_len;
 
-	if (data->ctx.rx_buf)
-	{
-		dma_segment_len = len * data->dma_rx.dma_cfg.dest_data_size;
-		return spi_stm32_dma_rx_load(dev, data->ctx.rx_buf, dma_segment_len);
-	}
-
-	return 0;
+	dma_segment_len = len * data->dma_rx.dma_cfg.dest_data_size;
+	return spi_stm32_dma_rx_load(dev, data->ctx.rx_buf, dma_segment_len);
 }
 
 static int spi_dma_move_tx_buffers(const struct device *dev, size_t len)
@@ -1649,14 +1644,7 @@ static int transceive_dma(const struct device *dev,
 
 #if !DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
 		/* toggle the DMA request to restart the transfer */
-		if (transfer_dir == LL_SPI_FULL_DUPLEX) {
-			LL_SPI_EnableDMAReq_RX(spi);
-			LL_SPI_EnableDMAReq_TX(spi);
-		} else if (transfer_dir == LL_SPI_HALF_DUPLEX_TX) {
-			LL_SPI_EnableDMAReq_TX(spi);
-		} else {
-			LL_SPI_EnableDMAReq_RX(spi);
-		}
+		spi_dma_enable_requests(spi);
 #endif /* ! st_stm32h7_spi */
 
 		ret = wait_dma_rx_tx_done(dev);

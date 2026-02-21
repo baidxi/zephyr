@@ -9,11 +9,3 @@ config QDEC_STM32
 	select PINCTRL
 	help
 	  STM32 family Quadrature Decoder driver.
-
-config QDEC_STM32_TRIGGER
-	bool "Enable trigger mode for STM32 QDEC driver"
-	depends on QDEC_STM32
-	help
-		Enable trigger support for the STM32 QDEC driver. This allows
-		the application to get an interrupt when the counter overflows
-		or underflows.
