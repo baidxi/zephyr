@@ -129,6 +129,7 @@ set_variable_ifdef(CONFIG_MIPI_DSI_NXP_DWC      CONFIG_MCUX_COMPONENT_driver.mip
 set_variable_ifdef(CONFIG_MCUX_SDIF             CONFIG_MCUX_COMPONENT_driver.sdif)
 set_variable_ifdef(CONFIG_MCUX_XBARA            CONFIG_MCUX_COMPONENT_driver.xbara)
 set_variable_ifdef(CONFIG_MCUX_XBARB            CONFIG_MCUX_COMPONENT_driver.xbarb)
+set_variable_ifdef(CONFIG_QDC_MCUX              CONFIG_MCUX_COMPONENT_driver.qdc)
 set_variable_ifdef(CONFIG_QDEC_MCUX             CONFIG_MCUX_COMPONENT_driver.enc)
 set_variable_ifdef(CONFIG_CRYPTO_MCUX_DCP       CONFIG_MCUX_COMPONENT_driver.dcp)
 set_variable_ifdef(CONFIG_DAC_MCUX_LPDAC        CONFIG_MCUX_COMPONENT_driver.dac_1)
@@ -158,6 +159,7 @@ set_variable_ifdef(CONFIG_OPAMP_MCUX_OPAMP          CONFIG_MCUX_COMPONENT_driver
 set_variable_ifdef(CONFIG_OPAMP_MCUX_OPAMP_FAST     CONFIG_MCUX_COMPONENT_driver.opamp_fast)
 set_variable_ifdef(CONFIG_CRC_DRIVER_NXP        CONFIG_MCUX_COMPONENT_driver.crc)
 set_variable_ifdef(CONFIG_CRC_DRIVER_NXP_LPC    CONFIG_MCUX_COMPONENT_driver.lpc_crc)
+set_variable_ifdef(CONFIG_WUC_MCUX_LLWU         CONFIG_MCUX_COMPONENT_driver.llwu)
 
 if(NOT CONFIG_SOC_MIMX9596)
   set_variable_ifdef(CONFIG_ETH_NXP_IMX_NETC          CONFIG_MCUX_COMPONENT_driver.netc_switch)
@@ -371,6 +373,8 @@ endif()
 if(CONFIG_SOC_MCXW236 OR CONFIG_SOC_MCXW235)
   set(CONFIG_MCUX_COMPONENT_driver.lpc_iocon ON)
   set(CONFIG_MCUX_COMPONENT_driver.romapi ON)
+  # OS timer is used to replace SYSTICK during low power events for system wakeup.
+  set_variable_ifdef(CONFIG_PM CONFIG_MCUX_COMPONENT_driver.ostimer)
 endif()
 
 if((DEFINED CONFIG_FLASH_MCUX_XSPI_XIP) AND (DEFINED CONFIG_FLASH))

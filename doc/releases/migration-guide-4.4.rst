@@ -42,6 +42,8 @@ Build System
   the application source dir per-default. Samples requiring application source dir to be added to
   ``SNIPPET_ROOT`` must instead add the application source dir using ``snippet_root = <dir>`` entry
   in :file:`zephyr/module.yml` or manually append the folder to the CMake variable ``SNIPPET_ROOT``.
+* Shell autocompletions (``west completion``) should be regenerated as board target auto-complete now
+  supports board revisions.
 
 Kernel
 ******
@@ -67,6 +69,9 @@ Boards
 
   * The ``--file-type`` option can now be used without ``--file`` to select between build artifacts
     (hex, elf, bin).
+
+* native_sim: host FUSE access: Defaults to using libfusev3 now instead of v2. But can be chosen
+  with :kconfig:option:`CONFIG_FUSE_LIBRARY_VERSION` (:github:`104965`).
 
 * m5stack_fire: Removed unused pinctrl entries for UART2, and updated the UART1
   pin mapping from GPIO32/GPIO33 to GPIO16/GPIO17 to match the documented Grove
@@ -193,6 +198,13 @@ ADC
   replace the 14 and 12-bit resolution values. This change may have an impact on power consumption
   if 14 or 12-bit resolutions are used. Previously, power-optimized values were used, now the
   standard values (not power-optimized but better accuracy) are used. No impact on other series.
+
+Clock Control
+=============
+
+* ``bflb,bl60x-pll``, ``bflb,bl61x-root-clk``, ``bflb,bl60x-root-clk``, ``bflb,bl61x-wifipll``,
+  ``bflb,bl70x-root-clk`` and ``bflb,bl61x-flash-clk`` got respectively replaced with
+  :dtcompatible:`bflb,flash-clk`, :dtcompatible:`bflb,pll` and :dtcompatible:`bflb,root-clk`.
 
 Controller Area Network (CAN)
 =============================
@@ -409,6 +421,34 @@ Counter
      GPT now uses explicit devicetree properties rather than hardcoded values, allowing
      per-instance customization.
 
+.. _migration_4.4_devicetree:
+
+Devicetree
+==========
+
+* :ref:`dt-bindings` are no longer allowed to specify any default values for
+  the ``#address-cells`` and ``#size-cells`` properties. The semantics for
+  these properties are defined in Devicetree `Specification
+  <https://www.devicetree.org/specifications>`_ section 2.3.5 and users should
+  not try to override them with their own defaults.
+
+  The following bindings syntax now causes build errors:
+
+  .. code-block:: yaml
+
+     properties:
+       "#address-cells":
+         default: ...             <---- any default is a build error
+       "#size-cells":
+         default: ...             <---- any default is a build error
+
+  If you were relying on default values in your bindings, you now must
+  explicitly specify the values in your devicetree source to fix these build
+  errors.
+
+* The devicetree compatible ``ilitek,ili9806e-dsi`` was renamed.
+  Use :dtcompatible:`ilitek,ili9806e` instead.
+
 Display
 =======
 
@@ -455,6 +495,8 @@ EEPROM
 * Added :c:func:`eeprom_target_read_data()` and :c:func:`eeprom_target_write_data()` which takes an
   offset and length and deprecated :c:func:`eeprom_target_program()` for the I2C EEPROM target driver.
 
+* Updated :dtcompatible:`microchip,xec-eeprom` for PCR and GIRQ properties to use new macros (:github:`104591`).
+
 ESP32-S3
 ========
 
@@ -494,10 +536,11 @@ Ethernet
   * :dtcompatible:`nxp,enet-mac` (:github:`102775`)
   * :dtcompatible:`sensry,sy1xx-mac` (:github:`100619`)
   * :dtcompatible:`st,stm32n6-ethernet`, :dtcompatible:`st,stm32h7-ethernet`
-    and :dtcompatible:`st,stm32-ethernet` (:github:`102810`)
+    and :dtcompatible:`st,stm32-ethernet` (:github:`102810`, :github:`105090`)
   * :dtcompatible:`virtio,net` (:github:`100106`)
   * :dtcompatible:`vnd,ethernet` (:github:`96598`)
   * :dtcompatible:`wiznet,w5500` (:github:`100919`)
+  * :dtcompatible:`snps,designware-ethernet` (:github:`105090`)
 
 * The ``fixed-link`` property has been removed from :dtcompatible:`ethernet-phy`. Use
   the new :dtcompatible:`ethernet-phy-fixed-link` compatible instead, if that functionality
@@ -513,6 +556,13 @@ Ethernet
   defaulting to the value of :kconfig:option:`CONFIG_ETH_INIT_PRIORITY`. Same for
   :kconfig:option:`CONFIG_PTP_CLOCK_INIT_PRIORITY`,  but only if :kconfig:option:`CONFIG_ETH_DRIVER`
   is enabled. This way the priority is based on the dependencies in the devicetree.
+  (:github:`104310`)
+
+* Drivers, that support checksum offloading, now need to select the new Kconfig option
+  :kconfig:option:`CONFIG_NET_CHECKSUM_OFFLOAD_SUPPORTED`.
+  :kconfig:option:`CONFIG_NET_CHECKSUM_OFFLOAD` needs to be enabled to use checksum offloading.
+  It is enabled by default if :kconfig:option:`CONFIG_NET_CHECKSUM_OFFLOAD_SUPPORTED` is selected.
+  (:github:`105051`)
 
 File System
 ===========
@@ -520,12 +570,13 @@ File System
 * :kconfig:option:`CONFIG_FS_FATFS_FSTAB_AUTOMOUNT` is now enabled by default, if any enabled
   :dtcompatible:`zephyr,fstab,fatfs` with the ``automount`` property are present in the devicetree.
   Applications that do not want this behavior need to explicitly disable this option.
+  (:github:`103139`)
 
 * NVS and ZMS have been moved to the new Key-Value Storage Systems (KVSS) subsystem; the move
   affects NVS and ZMS interface header paths which have been moved from
   ``zephyr/fs/`` to ``zephyr/kvss/``.
   Kconfig options for NVS and ZMS have been moved from underneath "File Systems" menu to
-  "Key-Value Storage Systems" menu, no Kconfigs have been affected.
+  "Key-Value Storage Systems" menu, no Kconfigs have been affected. (:github:`103244`)
 
 GPIO
 ====
@@ -743,6 +794,18 @@ Stepper
 
 * :dtcompatible:`adi,tmc50xx` and :dtcompatible:`adi,tmc51xx` devices are now modeled as MFDs.
 
+* Removed the Kconfig.stepper_event_template template used to generate the
+  :kconfig:option:`CONFIG_STEPPER_*_GENERATE_ISR_SAFE_EVENTS` and
+  :kconfig:option:`CONFIG_STEPPER_*_EVENT_QUEUE_LEN` symbols
+
+* :kconfig:option:`CONFIG_STEPPER_STEP_DIR_GENERATE_ISR_SAFE_EVENTS` is replaced by
+  :kconfig:option:`CONFIG_STEPPER_CTRL_ISR_SAFE_EVENTS`
+
+* :kconfig:option:`CONFIG_STEPPER_STEP_DIR_EVENT_QUEUE_LEN` is replaced by
+  :kconfig:option:`CONFIG_STEPPER_CTRL_EVENT_QUEUE_LEN`
+
+* :kconfig:option:`CONFIG_STEPPER_CTRL_ISR_SAFE_EVENTS` is now enabled by default
+
 STM32
 =====
 
@@ -837,6 +900,7 @@ USB
 Video
 =====
 
+* ``CONFIG_VIDEO_HIMAX_HM01B0`` has been renamed into :kconfig:option:`CONFIG_VIDEO_HM01B0`.
 * CONFIG_VIDEO_OV7670 is now gone and replaced by CONFIG_VIDEO_OV767X.  This allows supporting both the OV7670 and 0V7675.
 * :kconfig:option:`CONFIG_VIDEO_BUFFER_POOL_SZ_MAX` is replaced by
   :kconfig:option:`CONFIG_VIDEO_BUFFER_POOL_HEAP_SIZE` which represent the
@@ -945,6 +1009,9 @@ Networking
   code cannot use POSIX APIs, then the relevant network API prefix needs to be added to the
   code calling a network API.
 
+* The return type of :c:type:`net_icmp_handler_t` has changed from ``int`` to
+  :c:enum:`net_verdict`. (:github:`104815`)
+
 * The enum for HTTP server transaction status has been renamed from ``http_data_status``
   to ``http_transaction_status`` to better reflect its purpose. The enum values have also been
   renamed as follows:
@@ -1040,6 +1107,9 @@ Flash
 
 * ``CONFIG_FLASH_AREA_CHECK_INTEGRITY_PSA`` is also removed since there is
   now no alternative for the crypto library backend.
+
+* The flash shell commands ``flash erase`` and ``flash write`` now require an explicit
+  device argument. This avoids accidental corruption of the device's program flash.
 
 JWT
 ===

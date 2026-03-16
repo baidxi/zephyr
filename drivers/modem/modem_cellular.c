@@ -37,7 +37,7 @@ LOG_MODULE_REGISTER(modem_cellular, CONFIG_MODEM_LOG_LEVEL);
 #define CESQ_RSRQ_UNKNOWN		     (255)
 
 /* Magic numbers to units conversions */
-#define CSQ_RSSI_TO_DB(v) (-113 + (2 * (rssi)))
+#define CSQ_RSSI_TO_DB(v) (-113 + (2 * (v)))
 #define CESQ_RSRP_TO_DB(v) (-140 + (v))
 #define CESQ_RSRQ_TO_DB(v) (-20 + ((v) / 2))
 
@@ -909,7 +909,6 @@ static int modem_cellular_on_await_power_on_state_enter(struct modem_cellular_da
 
 	modem_cellular_start_timer(data, K_MSEC(config->startup_time_ms));
 	modem_pipe_attach(data->uart_pipe, modem_cellular_bus_pipe_handler, data);
-	modem_chat_attach(&data->chat, data->uart_pipe);
 	return modem_pipe_open_async(data->uart_pipe);
 }
 
@@ -920,6 +919,9 @@ static void modem_cellular_await_power_on_event_handler(struct modem_cellular_da
 		(const struct modem_cellular_config *)data->dev->config;
 
 	switch (evt) {
+	case MODEM_CELLULAR_EVENT_BUS_OPENED:
+		modem_chat_attach(&data->chat, data->uart_pipe);
+		break;
 	case MODEM_CELLULAR_EVENT_MODEM_READY:
 		/* disable the timer and fall through, as we are ready to proceed */
 		modem_cellular_stop_timer(data);
