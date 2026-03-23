@@ -35,6 +35,7 @@
 #endif
 
 #include <linklayer_plat_local.h>
+#include <hci_if.h>
 #include "ieee802154_stm32wba.h"
 #include <stm32wba_802154_intf.h>
 
@@ -169,10 +170,19 @@ static void stm32wba_802154_receive_failed(stm32wba_802154_ral_rx_error_t error)
 	const struct device *dev = stm32wba_802154_get_device();
 	enum ieee802154_rx_fail_reason reason;
 
-	if (error == STM32WBA_802154_RAL_RX_ERROR_NO_BUFFERS) {
+	switch (error) {
+	case STM32WBA_802154_RAL_RX_ERROR_FCS:
+		reason = IEEE802154_RX_FAIL_INVALID_FCS;
+		break;
+	case STM32WBA_802154_RAL_RX_ERROR_NO_FRAME_RECEIVED:
 		reason = IEEE802154_RX_FAIL_NOT_RECEIVED;
-	} else {
+		break;
+	case STM32WBA_802154_RAL_RX_ERROR_DEST_ADDRESS_FILTERED:
+		reason = IEEE802154_RX_FAIL_ADDR_FILTERED;
+		break;
+	default:
 		reason = IEEE802154_RX_FAIL_OTHER;
+		break;
 	}
 
 	if (IS_ENABLED(CONFIG_IEEE802154_STM32WBA_LOG_RX_FAILURES)) {
@@ -676,6 +686,9 @@ static int stm32wba_802154_driver_init(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
+	/* Initialization of the thread dedicated to Link Layer Controller IP */
+	stm32wba_ll_ctlr_thread_init();
+
 	k_fifo_init(&stm32wba_802154_data.rx_fifo);
 	k_sem_init(&stm32wba_802154_data.tx_wait, 0, 1);
 	k_sem_init(&stm32wba_802154_data.cca_wait, 0, 1);
@@ -982,7 +995,7 @@ static int stm32wba_802154_attr_get(const struct device *dev,
 static void stm32wba_802154_receive_done(uint8_t *p_buffer,
 					 stm32wba_802154_ral_receive_done_metadata_t *p_metadata)
 {
-	if (p_buffer == NULL) {
+	if ((p_buffer == NULL) || (p_metadata->error != STM32WBA_802154_RAL_RX_ERROR_NONE)) {
 		stm32wba_802154_receive_failed(p_metadata->error);
 		return;
 	}

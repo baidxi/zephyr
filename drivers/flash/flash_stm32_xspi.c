@@ -2183,14 +2183,14 @@ static int flash_stm32_xspi_init(const struct device *dev)
 
 	LOG_DBG("XSPI Init'd");
 
-#if defined(HAL_XSPIM_IOPORT_1) || defined(HAL_XSPIM_IOPORT_2) || \
-	defined(XSPIM) || defined(XSPIM1) || defined(XSPIM2)
+#if (defined(HAL_XSPIM_IOPORT_1) || defined(HAL_XSPIM_IOPORT_2)) && \
+	!defined(CONFIG_STM32_XSPIM)
 	/* XSPI I/O manager init Function */
 	XSPIM_CfgTypeDef xspi_mgr_cfg;
 
-	if (dev_data->hxspi.Instance == XSPI1) {
+	if (dev_data->hxspi.Instance == STM32_XSPI1) {
 		xspi_mgr_cfg.IOPort = HAL_XSPIM_IOPORT_1;
-	} else if (dev_data->hxspi.Instance == XSPI2) {
+	} else if (dev_data->hxspi.Instance == STM32_XSPI2) {
 		xspi_mgr_cfg.IOPort = HAL_XSPIM_IOPORT_2;
 	}
 	xspi_mgr_cfg.nCSOverride = HAL_XSPI_CSSEL_OVR_DISABLED;
@@ -2202,7 +2202,7 @@ static int flash_stm32_xspi_init(const struct device *dev)
 		return -EIO;
 	}
 
-#endif /* XSPIM */
+#endif /* (HAL_XSPIM_IOPORT_1 || HAL_XSPIM_IOPORT_2) && !(xspim node) */
 
 #if defined(XSPI_DCR1_DLYBYP)
 	/* XSPI delay block init Function */

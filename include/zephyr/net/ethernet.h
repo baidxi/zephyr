@@ -21,6 +21,7 @@
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/lldp.h>
+#include <zephyr/sys/clock.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/ethernet_vlan.h>
@@ -647,14 +648,8 @@ struct ethernet_lldp {
 	/** Length of the optional Data Unit TLVs */
 	size_t optional_len;
 
-	/** Network interface that has LLDP supported. */
-	struct net_if *iface;
-
-	/** LLDP TX timer start time */
-	int64_t tx_timer_start;
-
-	/** LLDP TX timeout */
-	uint32_t tx_timer_timeout;
+	/** LLDP TX timer timeout */
+	k_timepoint_t tx_timer_timeout;
 
 	/** LLDP RX callback function */
 	net_lldp_recv_cb_t cb;
@@ -689,14 +684,8 @@ struct ethernet_context {
 	struct net_if *iface;
 
 #if defined(CONFIG_NET_LLDP)
-#if NET_VLAN_MAX_COUNT > 0
-#define NET_LLDP_MAX_COUNT NET_VLAN_MAX_COUNT
-#else
-#define NET_LLDP_MAX_COUNT 1
-#endif /* NET_VLAN_MAX_COUNT > 0 */
-
 	/** LLDP specific parameters */
-	struct ethernet_lldp lldp[NET_LLDP_MAX_COUNT];
+	struct ethernet_lldp lldp;
 #endif
 
 	/**
@@ -977,14 +966,14 @@ static inline
 int net_eth_get_hw_config(struct net_if *iface, enum ethernet_config_type type,
 			 struct ethernet_config *config)
 {
-	const struct ethernet_api *eth =
-		(struct ethernet_api *)net_if_get_device(iface)->api;
+	const struct device *dev = net_if_get_device(iface);
+	const struct ethernet_api *eth = dev->api;
 
 	if (!eth->get_config) {
 		return -ENOTSUP;
 	}
 
-	return eth->get_config(net_if_get_device(iface), type, config);
+	return eth->get_config(dev, type, config);
 }
 
 

@@ -443,6 +443,8 @@ SECTIONS
     /* [mapping:esp_system] */
     *libzephyr.a:esp_err.*(.literal .literal.* .text .text.*)
     *(.literal.esp_system_abort .text.esp_system_abort)
+    *(.literal.esp_restart_noos .text.esp_restart_noos)
+    *(.literal.esp_system_reset_modules_on_exit .text.esp_system_reset_modules_on_exit)
 
     /* [mapping:esp_hw_support] */
     *(.literal.esp_cpu_stall .text.esp_cpu_stall)
@@ -724,6 +726,8 @@ SECTIONS
     /* [mapping:esp_system] */
     *libzephyr.a:esp_err.*(.rodata .rodata.*)
     *(.rodata.esp_system_abort)
+    *(.rodata.esp_restart_noos)
+    *(.rodata.esp_system_reset_modules_on_exit)
 
     *libphy.a:(.rodata .rodata.*)
 
@@ -811,6 +815,11 @@ SECTIONS
     *(.noinit)
     *(.noinit.*)
 #endif /* CONFIG_ESP32_WIFI_NET_ALLOC_SPIRAM */
+#ifdef CONFIG_LLEXT
+    *(.llext_heap)
+    *(.llext_ext_heap)
+    *(.llext_metadata_heap)
+#endif /* CONFIG_LLEXT */
     __dram_noinit_end = ABSOLUTE(.);
     . = ALIGN(4) ;
   } GROUP_LINK_IN(RAMABLE_REGION)
