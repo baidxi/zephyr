@@ -33,6 +33,73 @@ We are pleased to announce the release of Zephyr version 4.4.0.
 
 Major enhancements with this release include:
 
+**OpenRISC support**
+  Zephyr now supports the :zephyr:board-catalog:`OpenRISC architecture <#arch=openrisc>`.
+
+**Toolchain updates: Zephyr SDK 1.0 and C17**
+  Zephyr 4.4 is the first release to support :ref:`Zephyr SDK 1.0 <toolchain_zephyr_sdk>`, with an
+  upgraded GNU toolchain, experimental Clang/LLVM support, and multi-platform QEMU and OpenOCD
+  host tools.
+
+  Zephyr now defaults to C17 as its minimum required C standard version.
+
+**Networking enhancements**
+  The Wi-Fi management stack now supports :ref:`wifi_mgmt_p2p`, allowing devices to discover and
+  connect directly without a traditional access point.
+
+  The networking stack also adds support for :zephyr:code-sample:`WireGuard VPN <wireguard-vpn>`,
+  enabling secure, low-overhead tunneling.
+
+**USB host**
+  Experimental USB host support has been significantly expanded with a new host-class driver
+  framework and support for :abbr:`UVC (USB Video Class)` cameras on Zephyr devices acting as USB
+  hosts.
+
+**New driver classes**
+  Zephyr 4.4 adds several new driver APIs, including:
+
+  - :ref:`One-Time Programmable (OTP) memory devices <otp>` for provisioning and reading permanent
+    device data,
+
+  - A :ref:`biometrics API <biometrics_api>` for integrating biometric sensors such as fingerprint
+    scanners or facial recognition systems, and
+
+  - A :ref:`Wake-up Controller (WUC) API <wuc_api>` for managing wake-up sources that can bring the
+    system out of low-power states.
+
+**Zbus proxy agents**
+  :ref:`Zbus proxy agents <zbus_proxy_agent>` extend publish-subscribe messaging across CPU and
+  domain boundaries over IPC.
+
+**Pressure-based CPU frequency scaling**
+  The experimental :ref:`CPU frequency scaling <cpu_freq>` subsystem now includes a
+  :ref:`pressure-based policy <pressure_policy>` that adjusts CPU frequency according to scheduler
+  load.
+
+**ARM Cortex-M context switching performance improvements**
+  A new context switch implementation for ARM Cortex-M, enabled via
+  :kconfig:option:`CONFIG_USE_SWITCH`, delivers significant performance improvements.
+
+**Developer experience improvements**
+  This release adds several new tools and improvements to development and testing workflows:
+
+  - A new :ref:`dashboard <dashboard>` consolidates build information such as RAM and ROM footprint,
+    Devicetree configuration, subsystem initialization levels, and more in a single report.
+
+  - A new display driver for QEMU targets simplifies development of display-based applications in
+    environments where the native simulator is unavailable.
+
+  - New :ref:`scope-based cleanup helpers <cleanup_api>` provide :abbr:`RAII (Resource Acquisition
+    Is Initialization)`/defer-style automatic cleanup in C when leaving scope.
+
+  - The new :ref:`ztest benchmarking framework <ztest_benchmarking>` provides a standardized way to
+    create cycle-accurate benchmarks, with automated data collection, overhead compensation, and
+    statistical reporting.
+
+**Expanded board support**
+  This release adds support for 121 :ref:`new boards <boards_added_in_zephyr_4_4>` and 31
+  :ref:`new shields <shields_added_in_zephyr_4_4>`.
+
 An overview of the changes required or recommended when migrating your application from Zephyr
 v4.3.0 to Zephyr v4.4.0 can be found in the separate :ref:`migration guide<migration_4.4>`.
 
@@ -49,11 +116,26 @@ The following CVEs are addressed by this release:
 * :cve:`2026-0849` `Zephyr project bug tracker GHSA-ff4p-3ggg-prp6
   <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-ff4p-3ggg-prp6>`_
 
+* :cve:`2026-1677` Under embargo until 2026-04-15
+
 * :cve:`2026-1678` `Zephyr project bug tracker GHSA-536f-h63g-hj42
   <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-536f-h63g-hj42>`_
 
+* :cve:`2026-1679` `Zephyr project bug tracker GHSA-qx3g-5g22-fq5w
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-qx3g-5g22-fq5w>`_
+
+* :cve:`2026-1681` Under embargo until 2026-04-15
+
 * :cve:`2026-4179` `Zephyr project bug tracker GHSA-9xg7-g3q3-9prf
   <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-9xg7-g3q3-9prf>`_
+
+* :cve:`2026-5066` Under embargo until 2026-06-01
+
+* :cve:`2026-5067` Under embargo until 2026-05-23
+
+* :cve:`2026-5071` Under embargo until 2026-05-18
+
+* :cve:`2026-5072` Under embargo until 2026-05-18
 
 API Changes
 ***********
@@ -199,6 +281,8 @@ New APIs and options
   * :c:macro:`ADC_DT_SPEC_INST_GET_BY_IDX_OR`
   * :c:macro:`ADC_DT_SPEC_INST_GET_BY_NAME_OR`
   * :c:macro:`ADC_DT_SPEC_INST_GET_OR`
+  * :c:member:`adc_sequence.priority`
+  * :kconfig:option:`CONFIG_ADC_SEQUENCE_PRIORITY`
 
 * Architectures
 
@@ -221,6 +305,7 @@ New APIs and options
     * :kconfig:option:`CONFIG_BT_TBS_MAX_FRIENDLY_NAME_LENGTH`
     * :c:member:`bt_cap_handover_cb.unicast_to_broadcast_created`
     * :c:func:`bt_tbs_client_get_by_index`
+    * :c:member:`bt_bap_unicast_client_cb.supported_contexts`
 
   * Host
 
@@ -271,6 +356,30 @@ New APIs and options
 * DAC
 
   * Added new DAC driver (:dtcompatible:`nxp,hpdac`) (:github:`104642`).
+  * Added new DAC driver APIs (:github:`104630`)
+
+    * :c:struct:`dac_dt_spec`
+    * :c:macro:`DAC_CHANNEL_CFG_DT`
+    * :c:macro:`DAC_DT_SPEC_GET_BY_NAME`
+    * :c:macro:`DAC_DT_SPEC_GET_BY_NAME_OR`
+    * :c:macro:`DAC_DT_SPEC_INST_GET_BY_NAME`
+    * :c:macro:`DAC_DT_SPEC_INST_GET_BY_NAME_OR`
+    * :c:macro:`DAC_DT_SPEC_GET_BY_IDX`
+    * :c:macro:`DAC_DT_SPEC_GET_BY_IDX_OR`
+    * :c:macro:`DAC_DT_SPEC_INST_GET_BY_IDX`
+    * :c:macro:`DAC_DT_SPEC_INST_GET_BY_IDX_OR`
+    * :c:macro:`DAC_DT_SPEC_GET`
+    * :c:macro:`DAC_DT_SPEC_GET_OR`
+    * :c:macro:`DAC_DT_SPEC_INST_GET`
+    * :c:macro:`DAC_DT_SPEC_INST_GET_OR`
+    * :c:func:`dac_channel_setup_dt`
+    * :c:func:`dac_write_value_dt`
+    * :c:func:`dac_millivolts_to_raw`
+    * :c:func:`dac_microvolts_to_raw`
+    * :c:func:`dac_x_to_raw_dt_chan`
+    * :c:func:`dac_millivolts_to_raw_dt`
+    * :c:func:`dac_microvolts_to_raw_dt`
+    * :c:func:`dac_is_ready_dt`
 
 * DMA
 
@@ -389,6 +498,10 @@ New APIs and options
 
   * :c:func:`shell_readline` for :ref:`user input <shell-readline>`
 
+* Stepper
+
+  * :c:func:`stepper_ctrl_configure_ramp`
+
 * Sys
 
   * :c:macro:`COND_CASE_1`
@@ -458,6 +571,8 @@ New APIs and options
   * :c:func:`video_import_buffer`
 
 .. zephyr-keep-sorted-stop
+
+.. _boards_added_in_zephyr_4_4:
 
 New Boards
 **********
@@ -714,6 +829,8 @@ New Boards
 * WinChipHead
 
    * :zephyr:board:`ch32v307v_evt_r1` (``ch32v307v_evt_r1``)
+
+.. _shields_added_in_zephyr_4_4:
 
 New Shields
 ***********
@@ -974,6 +1091,7 @@ New Drivers
 
 * Firmware
 
+   * :dtcompatible:`arm,scmi-smc` (:github:`103584`)
    * :dtcompatible:`arm,scmi-system` (:github:`99037`)
    * :dtcompatible:`qemu,fw-cfg-ioport` (:github:`103717`)
    * :dtcompatible:`qemu,fw-cfg-mmio` (:github:`103717`)
@@ -1400,10 +1518,12 @@ New Samples
 * :zephyr:code-sample:`regulator_shell`
 * :zephyr:code-sample:`renesas_lvd`
 * :zephyr:code-sample:`rtk0eg0019b01002bj`
+* :zephyr:code-sample:`scmi`
 * :zephyr:code-sample:`sct2024`
 * :zephyr:code-sample:`shell-devmem-load`
 * :zephyr:code-sample:`stm32_pwm_mastermode`
 * :zephyr:code-sample:`t1s`
+* :zephyr:code-sample:`tmcm3216`
 * :zephyr:code-sample:`veml6046`
 * :zephyr:code-sample:`virtiofs`
 * :zephyr:code-sample:`zbus-async-listeners`
@@ -1417,7 +1537,7 @@ DeviceTree
 
 * Migration guide: :ref:`migration_4.4_devicetree`
 * Bindings are no longer allowed to specify any default values for the
-  ``#address-cells`` and ``#size-cells`` properties.
+  ``status``, ``#address-cells`` and ``#size-cells`` properties.
 * :c:macro:`DT_CHILD_BY_UNIT_ADDR_INT`
 * :c:macro:`DT_INST_CHILD_BY_UNIT_ADDR_INT`
 
@@ -1471,6 +1591,9 @@ Other notable changes
 
 * NXP SoC DTSI files have been reorganized by moving them into family-specific
   subdirectories under ``dts/arm/nxp``.
+
+* :zephyr:board:`native_sim` based targets can now be :ref:`cross-compiled<posix_arch_cross_compile>`
+  (:github:`100182`)
 
 ..
   Any more descriptive subsystem or driver changes. Do you really want to write
