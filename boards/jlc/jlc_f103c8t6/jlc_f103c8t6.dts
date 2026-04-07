@@ -25,7 +25,7 @@
 		compatible = "gpio-leds";
 
 		green_led_0: led_0 {
-			gpios = <&gpioc 13 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
 			label = "User LD0";
 		};
 	};
@@ -64,6 +64,16 @@
 	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
+	status = "okay";
+};
+
+zephyr_udc0:&usb {
+	pinctrl-0 = <&usb_dm_pa11 &usb_dp_pa12>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&usb_fs_phy {
 	status = "okay";
 };
 

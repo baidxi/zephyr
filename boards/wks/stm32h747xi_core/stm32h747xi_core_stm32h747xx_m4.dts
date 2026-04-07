@@ -1,0 +1,29 @@
+/dts-v1/;
+#include <st/h7/stm32h747Xi_m4.dtsi>
+#include <st/h7/stm32h747xihx-pinctrl.dtsi>
+#include "stm32h747xi_core.dtsi"
+
+/ {
+  model = "WKS stm32h747xi CORE board";
+  compatible = "wks,stm32h747xi-core";
+
+  chosen {
+    zephyr,sram = &sram1;
+    zephyr,flash = &flash1;
+  };
+
+  leds {
+    green_led_0: led_0 {
+      status = "okay";
+    };
+  };
+
+  aliases {
+    led0 = &green_led_0;
+  };
+};
+
+&rcc {
+  clock-frequency = <DT_FREQ_M(240)>;
+};
+

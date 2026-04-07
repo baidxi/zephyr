@@ -1,0 +1,6 @@
+board:
+  name: stm32h747xi_core
+  full_name: WKS STM32H747XI CORE BOARD
+  vendor: wks
+  socs:
+    - name: stm32h747xx

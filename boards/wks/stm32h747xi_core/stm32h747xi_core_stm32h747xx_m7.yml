@@ -1,0 +1,22 @@
+identifier: stm32h747xi_core/stm32h747xx/m7
+name: WKS stm32h747xi core (M7)
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 128
+flash: 1024
+supported:
+  - gpio
+  - spi
+  - netif:eth
+  - qspi
+  - memc
+  - usb_device
+testing:
+  ignore_tags:
+    - mpu
+    - nfc
+    - net
+vendor: wks

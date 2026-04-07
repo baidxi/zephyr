@@ -1,0 +1,6 @@
+board:
+  name: stm32g030_devebox
+  full_name: STM32G030 Core Board 1.0
+  vendor: st
+  socs:
+    - name: stm32g030xx

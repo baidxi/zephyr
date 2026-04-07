@@ -1,0 +1,57 @@
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+
+/ {
+  leds {
+    compatible = "gpio-leds";
+    green_led_0: led_0 {
+      gpios = <&gpioa 3 GPIO_ACTIVE_LOW>;
+      status = "disabled";
+    };
+
+    blue_led_1: led_1 {
+      gpios = <&gpiob 1 GPIO_ACTIVE_LOW>;
+      status = "disabled";
+    };
+  };
+
+  gpio_keys {
+    compatible = "gpio-keys";
+    wake_up: button {
+      label = "wakeup";
+      gpios = <&gpioa 2 GPIO_ACTIVE_HIGH>;
+      status = "disabled";
+      zephyr,code = <INPUT_KEY_WAKEUP>;
+    };
+    key0: key_0 {
+      label = "key0";
+      gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;
+      status = "disabled";
+      zephyr,code = <INPUT_KEY_0>;
+    };
+  };
+};
+
+&rcc {
+	d1cpre = <1>;
+	hpre = <2>;
+	d1ppre = <2>;
+	d2ppre1 = <2>;
+	d2ppre2 = <2>;
+	d3ppre = <2>;
+};
+
+&pwr {
+	/* Enable internal SMPS regulator */
+	power-supply = "smps-direct";
+};
+
+&usart1 {
+	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+};
+
+&mailbox {
+  status = "okay";
+};
