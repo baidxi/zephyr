@@ -810,6 +810,20 @@ NXP
   On Kinetis KE1xF, this overlay is also required when
   :kconfig:option:`CONFIG_PM` is enabled.
 
+* :dtcompatible:`nxp,imx-flexspi-nor` compatible nodes now have
+  a :dtcompatible:`soc-nv-flash` compatible child node to describe
+  the flash memory. The ``nxp,imx-flexspi-nor`` node acts as the
+  flash controller (renamed to ``flash-controller@0``),
+  and ``erase-block-size``, ``write-block-size`` properties, as well
+  as ``partitions`` node, are moved into the flash chip node.
+  Out-of-tree boards must update their devicetrees accordingly.
+
+* ``zephyr,flash`` chosen property must point to the
+  :dtcompatible:`soc-nv-flash` compatible node.
+  * ``zephyr,flash-controller`` chosen property must point to the
+  :dtcompatible:`nxp,imx-flexspi-nor` compatible node.
+  * A ``ranges`` property is required on the controller node.
+
 QSPI
 ====
 
@@ -1372,6 +1386,11 @@ Management
     :kconfig:option:`CONFIG_UART_MCUMGR` must now also be selected, this has changed to be
     ``depends on`` rather than ``select``.
 
+Random
+======
+
+* ``CONFIG_CSPRNG_AVAILABLE`` has been renamed to :kconfig:option:`CONFIG_ENTROPY_NODE_ENABLED`.
+
 Tracing
 ========
 
@@ -1393,6 +1412,15 @@ Settings
 
 * ``CONFIG_SETTINGS_TFM_ITS`` has been renamed to :kconfig:option:`CONFIG_SETTINGS_TFM_PSA`.
 
+Modules
+*******
+
+HostAP
+======
+
+* Kconfig :kconfig:option:`CONFIG_WIFI_NM_WPA_SUPPLICANT_CRYPTO_MBEDTLS_PSA` is now
+  enabled by default.
+
 Mbed TLS
 ========
 
@@ -1407,6 +1435,15 @@ Mbed TLS
 * ``CONFIG_MBEDTLS_ENTROPY_POLL_ZEPHYR`` has been renamed to
   :kconfig:option:`CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY`.
 
+* ``CONFIG_MBEDTLS_PEM_CERTIFICATE_FORMAT`` has been replaced by the underlying options it used
+  to enable: :kconfig:option:`CONFIG_MBEDTLS_PEM_PARSE_C`,
+  :kconfig:option:`CONFIG_MBEDTLS_PEM_WRITE_C` and :kconfig:option:`CONFIG_MBEDTLS_BASE64_C`.
+
+* ``CONFIG_MBEDTLS_SERVER_NAME_INDICATION`` has been renamed to
+  :kconfig:option:`CONFIG_MBEDTLS_SSL_SERVER_NAME_INDICATION`.
+
+* ``CONFIG_MBEDTLS_TEST`` has been renamed to :kconfig:option:`CONFIG_MBEDTLS_DEBUG_C`.
+
 * The following PSA related Kconfig symbols have been removed as they are no longer
   supported by TF-PSA-Crypto:
 
@@ -1417,6 +1454,7 @@ Mbed TLS
 
 * The following Mbed TLS Kconfig symbols have been removed:
 
+  * ``CONFIG_CUSTOM_MBEDTLS_CFG_FILE``
   * ``CONFIG_MBEDTLS_CHACHAPOLY_AEAD_ENABLED``
   * ``CONFIG_MBEDTLS_CIPHER_AES_ENABLED``
   * ``CONFIG_MBEDTLS_CIPHER_CAMELLIA_ENABLED``
@@ -1452,37 +1490,19 @@ Mbed TLS
   * ``CONFIG_MBEDTLS_HKDF_C``
   * ``CONFIG_MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED``
   * ``CONFIG_MBEDTLS_KEY_EXCHANGE_DHE_RSA_ENABLED``
+  * ``CONFIG_MBEDTLS_KEY_EXCHANGE_RSA_ENABLED``
   * ``CONFIG_MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED``
   * ``CONFIG_MBEDTLS_MD5``
   * ``CONFIG_MBEDTLS_PKCS1_V15``
   * ``CONFIG_MBEDTLS_PKCS1_V21``
   * ``CONFIG_MBEDTLS_POLY1305``
   * ``CONFIG_MBEDTLS_RSA_C``
-  * ``CONFIG_MBEDTLS_RSA_ENABLE_LEGACY_APIS``
   * ``CONFIG_MBEDTLS_SHA1``
   * ``CONFIG_MBEDTLS_SHA224``
   * ``CONFIG_MBEDTLS_SHA256``
   * ``CONFIG_MBEDTLS_SHA384``
   * ``CONFIG_MBEDTLS_SHA512``
   * ``CONFIG_MBEDTLS_USE_PSA_CRYPTO``
-
-* The following PSA Crypto API changes are introduced with TF-PSA-Crypto 1.1:
-
-  * ``psa_open_key()`` has been removed. Keys are now automatically loaded from persistent storage
-    when they are used.
-  * ``psa_close_key()`` has been replaced by :c:func:`psa_purge_key`. Update all call sites
-    accordingly.
-  * ``psa_key_handle_t`` has been replaced by ``psa_key_id_t``. Update type declarations and
-    variable definitions accordingly.
-
-Modules
-*******
-
-HostAP
-======
-
-* Kconfig :kconfig:option:`CONFIG_WIFI_NM_WPA_SUPPLICANT_CRYPTO_MBEDTLS_PSA` is now
-  enabled by default.
 
 OpenThread
 ==========
