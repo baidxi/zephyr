@@ -22,5 +22,4 @@ zephyr_library_sources_ifdef(CONFIG_RESET_RTS5817 reset_rts5817.c)
 zephyr_library_sources_ifdef(CONFIG_RESET_SF32LB reset_sf32lb.c)
 zephyr_library_sources_ifdef(CONFIG_RESET_STM32 reset_stm32.c)
 zephyr_library_sources_ifdef(CONFIG_RESET_SYNA_SR100 reset_syna_sr100.c)
-zephyr_library_sources_ifdef(CONFIG_RESET_SUN8I_V3S reset_sun8i_v3s.c)
 # zephyr-keep-sorted-stop
