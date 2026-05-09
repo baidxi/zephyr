@@ -74,6 +74,7 @@ source "drivers/clock_control/Kconfig.syna_sr100"
 source "drivers/clock_control/Kconfig.tisci"
 source "drivers/clock_control/Kconfig.wch_rcc"
 source "drivers/clock_control/Kconfig.xec"
+source "drivers/clock_control/Kconfig.sun8i"
 # zephyr-keep-sorted-stop
 
 source "drivers/clock_control/Kconfig.rts5817"

@@ -45,6 +45,7 @@ rsource "Kconfig.rts5817"
 rsource "Kconfig.sf32lb"
 rsource "Kconfig.stm32"
 rsource "Kconfig.syna_sr100"
+rsource "Kconfig.sun8i"
 # zephyr-keep-sorted-stop
 
 endif # RESET
