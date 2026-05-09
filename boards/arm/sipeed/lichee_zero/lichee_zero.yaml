@@ -1,0 +1,13 @@
+identifier: lichee_zero
+name: Sipeed Lichee Zero
+type: mcu
+arch: arm
+ram: 64
+vendor: sipeed
+toolchain:
+  - zephyr
+  - gnuarmemb
+supported:
+  - uart
+  - gpio
+  - timer

@@ -1,0 +1,6 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_LICHEE_ZERO
+	bool "Sipeed Lichee Zero"
+	select SOC_SUN8I_V3S

@@ -1,0 +1,6 @@
+board:
+  name: lichee_zero
+  full_name: Sipeed Lichee Zero
+  vendor: sipeed
+  socs:
+  - name: sun8i_v3s

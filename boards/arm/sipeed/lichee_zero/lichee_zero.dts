@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2025
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/pinctrl/allwinner,sun8i-v3s-pinctrl.h>
+#include <arm/armv7-a.dtsi>
+#include <allwinner/sun8i-v3s.dtsi>
+
+/ {
+	model = "Sipeed Lichee Zero";
+	compatible = "sipeed,lichee-zero", "allwinner,sun8i-v3s";
+
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,sram = &ddr0;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		green_led: led_0 {
+			gpios = <&gpiog 0 GPIO_ACTIVE_LOW>;
+			label = "Green LED";
+		};
+		blue_led: led_1 {
+			gpios = <&gpiog 1 GPIO_ACTIVE_LOW>;
+			label = "Blue LED";
+		};
+		red_led: led_2 {
+			gpios = <&gpiog 2 GPIO_ACTIVE_LOW>;
+			label = "Red LED";
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+};
+
+&pinctrl {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&gpiog {
+	status = "okay";
+};
