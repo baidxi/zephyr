@@ -1,0 +1,13 @@
+# Clock controller configuration options
+
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+config CLOCK_CONTROL_SUN8I_V3S
+	bool "Allwinner Sun8i V3s CCU clock controller driver"
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_CCU_ENABLED
+	default y
+	help
+	  Enable support for the Allwinner Sun8i V3s Clock Control Unit (CCU).
+	  This driver provides clock control for the Sun8i V3s SoC,
+	  including bus clock gating for peripherals.

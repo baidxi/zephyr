@@ -1,0 +1,23 @@
+description: Allwinner Sun8i V3s GPIO Controller
+
+compatible: "allwinner,sun8i-v3s-gpio"
+
+include: [gpio-controller.yaml, base.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: false
+
+  "#gpio-cells":
+    const: 2
+
+  "#interrupt-cells":
+    type: int
+    const: 2
+
+gpio-cells:
+  - pin
+  - flags

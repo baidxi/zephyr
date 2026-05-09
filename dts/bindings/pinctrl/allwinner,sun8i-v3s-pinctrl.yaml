@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner SUN8I-V3S pin controller.
+
+  Pin configuration nodes are organized in state groups as children of the
+  pinctrl node. Each state group (e.g., default_state) contains pin
+  configuration nodes that specify a group of pins sharing the same
+  configuration using the SUN8I_V3S_PINMUX(port, pin, func) macro from
+  <dt-bindings/pinctrl/allwinner,sun8i-v3s-pinctrl.h>.
+
+  Example:
+    #include <dt-bindings/pinctrl/allwinner,sun8i-v3s-pinctrl.h>
+
+    &pinctrl {
+        default_state {
+            uart0_pins: uart0-pins {
+                pinmux = <SUN8I_V3S_PINMUX(PORT_F, 2, FUNC_PF_UART0)>,
+                         <SUN8I_V3S_PINMUX(PORT_F, 4, FUNC_PF_UART0)>;
+                drive-strength = <3>;
+                allwinner,pull = "pull_up";
+            };
+        };
+    };
+
+compatible: "allwinner,sun8i-v3s-pinctrl"
+
+include: base.yaml
+
+child-binding:
+  description: |
+    Pin configuration state container for Allwinner SUN8I-V3S.
+
+    Each state child node (e.g., default_state) groups pin configuration
+    nodes that belong to the same state.
+
+  child-binding:
+    description: |
+      Pin configuration node for Allwinner SUN8I-V3S.
+
+      Each node specifies a group of pins sharing the same electrical and
+      multiplexing properties.
+
+    include:
+      - name: pincfg-node.yaml
+        property-allowlist:
+          - input-enable
+          - bias-pull-up
+          - bias-pull-down
+          - drive-open-drain
+
+    properties:
+      pinmux:
+        required: true
+        type: array
+        description: |
+          An array of encoded pin multiplexing values. Each element encodes
+          the port number, pin number, and function select using the
+          SUN8I_V3S_PINMUX(port, pin, func) macro defined in
+          <dt-bindings/pinctrl/allwinner,sun8i-v3s-pinctrl.h>.
+
+      drive-strength:
+        type: int
+        enum:
+          - 0
+          - 1
+          - 2
+          - 3
+        default: 2
+        description: |
+          Drive strength level for the pins in this group.
+          0 = 20mA, 1 = 10mA, 2 = 20mA (default), 3 = 30mA.
+          Verify exact values in V3s datasheet.
+
+      allwinner,pull:
+        type: string
+        enum:
+          - "no_pull"
+          - "pull_up"
+          - "pull_down"
+        default: "no_pull"
+        description: |
+          Pull configuration for the pins in this group.

@@ -1,0 +1,9 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SERIES_SUN8I
+	bool "Allwinner Sun8i series"
+	select SOC_FAMILY_ARM
+
+config SOC_SERIES
+	default "sun8i" if SOC_SERIES_SUN8I

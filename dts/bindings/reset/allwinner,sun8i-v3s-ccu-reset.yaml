@@ -1,0 +1,37 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner Sun8i V3s Reset Controller (part of CCU)
+
+  The reset controller is part of the CCU and provides reset control
+  for various peripherals and subsystems.
+
+  Reset consumer nodes should reference the reset controller using a phandle
+  with one cell specifying the reset ID.
+
+  Usage example:
+
+    #include <zephyr/dt-bindings/reset/allwinner,sun8i-v3s-ccu.h>
+
+    uart0: uart@1c28000 {
+        compatible = "ns16550", "snps,dw-apb-uart";
+        reg = <0x01c28000 0x400>;
+        reg-shift = <2>;
+        resets = <&ccu_reset RST_BUS_UART0>;
+        status = "disabled";
+    };
+
+compatible: "allwinner,sun8i-v3s-ccu-reset"
+
+include: [reset-controller.yaml]
+
+properties:
+  "#reset-cells":
+    const: 1
+    description: |
+      Number of cells in a reset specifier.
+      Should contain a single cell with the reset ID.
+
+reset-cells:
+  - id

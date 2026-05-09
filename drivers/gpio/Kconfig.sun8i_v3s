@@ -1,0 +1,6 @@
+config GPIO_SUN8I_V3S
+  bool "GPIO Driver for Allwinner sun8i family of SoCs"
+  default y
+  depends on DT_HAS_ALLWINNER_SUN8I_V3S_GPIO_ENABLED
+  help
+    Enable GPIO driver for Allwinner SUN8I SoCs

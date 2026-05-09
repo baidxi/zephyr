@@ -1,0 +1,61 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner Sun8i V3s Clock Control Unit (CCU)
+
+  The CCU is responsible for managing all clocks on Sun8i V3s SoC,
+  including PLLs, bus clocks, and peripheral clocks. It provides
+  clock gating, division, and multiplexing capabilities.
+
+  Clock consumer nodes should reference ccu node using a phandle
+  with one cell specifying clock ID.
+
+  Usage example:
+
+    #include <zephyr/dt-bindings/clock/allwinner,sun8i-v3s-ccu.h>
+
+    uart0: uart@1c28000 {
+        compatible = "ns16550", "snps,dw-apb-uart";
+        reg = <0x01c28000 0x400>;
+        reg-shift = <2>;
+        clocks = <&ccu CLK_BUS_UART0>;
+        status = "disabled";
+    };
+
+compatible: "allwinner,sun8i-v3s-ccu"
+
+include: [clock-controller.yaml, base.yaml]
+
+properties:
+  reg:
+    required: true
+    description: |
+      Base address and size of CCU register space
+
+  clocks:
+    type: phandle-array
+    description: |
+      Input clocks for CCU
+    required: true
+
+  clock-names:
+    type: string-array
+    description: |
+      Names of input clocks
+    required: true
+
+  "#clock-cells":
+    const: 1
+    description: |
+      Number of cells in a clock specifier.
+      Should contain a single cell with clock ID.
+
+  "#reset-cells":
+    const: 1
+    type: int
+    description: |
+      Number of cells in a reset specifier.
+
+clock-cells:
+  - clk-id

@@ -1,0 +1,8 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SUN8I_V3S
+	bool
+
+config SOC
+	default "sun8i_v3s" if SOC_SUN8I_V3S
