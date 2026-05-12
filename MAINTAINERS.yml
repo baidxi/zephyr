@@ -10,20 +10,22 @@
 #         One of the following:
 #
 #         * maintained:
-#             The area has a Maintainer (approved by the TSC) who
-#             looks after the area.
+#             The area has at least one active Maintainer responsible for its
+#             upkeep and development.
 #
 #         * odd fixes:
-#            The area gets odd fixes and may have collaborators.
+#             The area receives occasional fixes and may have contributors or
+#             collaborators providing minimal maintenance.
 #
 #         * obsolete:
-#             Old code. Something being marked obsolete generally means it has
-#             been replaced by something better that you should be using
-#             instead.
+#             The area contains deprecated or legacy code that has been
+#             superseded by newer implementations. Use of this code is
+#             discouraged in favor of the recommended replacement(s).
 #
 #     maintainers:
 #         List of GitHub handles for the people who maintain the area. Usually,
-#         there's only one maintainer.
+#         there's only one maintainer but depending on the area, there may be
+#         multiple maintainers sharing the responsibility.
 #
 #     collaborators (not to be confused with the GitHub collaborator role):
 #         Very involved contributors, who know the area well and contribute
@@ -131,11 +133,21 @@
 #
 # Changes to MAINTAINERS.yml need to be approved as follows:
 #
-#     * Changing the 'maintainers' for an area needs approval from the
-#       Technical Steering Committee
+#     * Adding a new area requires approval from the TSC or its representatives
+#       responsible for the maintainer file.
 #
-#     * Changing the 'collaborators' lines requires the maintainer and
-#       collaborators of that area to agree (or vote on it)
+#     * Changing the 'maintainers' for an area requires approval from the
+#       TSC or its representatives responsible for the maintainer file
+#       as well as approval by the maintainers of that area.
+#
+#     * Changing the 'collaborators' lines requires approval of the maintainers
+#       of that area.
+#
+# Notes:
+#
+# Approval from the TSC is delegated to a list of TSC respresentatives
+# who are listed as the 'maintainers' of the MAINTAINERS file. See MAINTAINER
+# file section below for details.
 
 # Areas are sorted by name
 
@@ -143,9 +155,9 @@
 ACPI:
   status: odd fixes
   files:
-    - lib/acpi/
+    - arch/common/acpi/
     - include/zephyr/acpi/
-    - tests/lib/acpi/
+    - tests/arch/common/acpi/
     - dts/bindings/acpi/
     - include/zephyr/dt-bindings/acpi/
   labels:
@@ -502,8 +514,8 @@ Bluetooth Audio:
     - tests/bluetooth/tester/overlay-le-audio.conf
     - tests/bluetooth/tester/overlay-bt_ll_sw_split.conf
     - tests/bluetooth/tester/src/audio/
-    - doc/connectivity/bluetooth/api/audio/
-    - doc/connectivity/bluetooth/shell/audio/
+    - doc/services/connectivity/bluetooth/api/audio/
+    - doc/services/connectivity/bluetooth/shell/audio/
     - samples/bluetooth/bap*/
     - samples/bluetooth/cap*/
     - samples/bluetooth/ccp*/
@@ -527,8 +539,8 @@ Bluetooth Classic:
     - makeshi
     - chengkai15
   files:
-    - doc/connectivity/bluetooth/shell/classic/
-    - doc/connectivity/bluetooth/api/classic/
+    - doc/services/connectivity/bluetooth/shell/classic/
+    - doc/services/connectivity/bluetooth/api/classic/
     - subsys/bluetooth/common/
     - subsys/bluetooth/host/classic/
     - include/zephyr/bluetooth/classic/
@@ -551,9 +563,9 @@ Bluetooth Controller:
     - erbr-ot
     - Tronil
   files:
-    - doc/connectivity/bluetooth/bluetooth-ctlr-arch.rst
-    - doc/connectivity/bluetooth/img/ctlr*
-    - doc/connectivity/bluetooth/api/controller.rst
+    - doc/services/connectivity/bluetooth/bluetooth-ctlr-arch.rst
+    - doc/services/connectivity/bluetooth/img/ctlr*
+    - doc/services/connectivity/bluetooth/api/controller.rst
     - include/zephyr/bluetooth/controller.h
     - subsys/bluetooth/common/
     - subsys/bluetooth/controller/
@@ -604,7 +616,7 @@ Bluetooth Host:
     - cvinayak
     - HaavardRei
   files:
-    - doc/connectivity/bluetooth/
+    - doc/services/connectivity/bluetooth/
     - include/zephyr/bluetooth/
     - samples/bluetooth/
     - subsys/bluetooth/common/
@@ -625,16 +637,16 @@ Bluetooth Host:
     - include/zephyr/bluetooth/controller.h
     - include/zephyr/bluetooth/mesh.h
     - include/zephyr/bluetooth/sbc.h
-    - doc/connectivity/bluetooth/bluetooth-ctlr-arch.rst
-    - doc/connectivity/bluetooth/autopts/
-    - doc/connectivity/bluetooth/img/ctlr*
-    - doc/connectivity/bluetooth/api/audio/
-    - doc/connectivity/bluetooth/api/classic/
-    - doc/connectivity/bluetooth/api/mesh/
-    - doc/connectivity/bluetooth/api/controller.rst
-    - doc/connectivity/bluetooth/shell/classic/
-    - doc/connectivity/bluetooth/shell/host/iso.rst
-    - doc/connectivity/bluetooth/shell/audio/
+    - doc/services/connectivity/bluetooth/bluetooth-ctlr-arch.rst
+    - doc/services/connectivity/bluetooth/autopts/
+    - doc/services/connectivity/bluetooth/img/ctlr*
+    - doc/services/connectivity/bluetooth/api/audio/
+    - doc/services/connectivity/bluetooth/api/classic/
+    - doc/services/connectivity/bluetooth/api/mesh/
+    - doc/services/connectivity/bluetooth/api/controller.rst
+    - doc/services/connectivity/bluetooth/shell/classic/
+    - doc/services/connectivity/bluetooth/shell/host/iso.rst
+    - doc/services/connectivity/bluetooth/shell/audio/
     - samples/bluetooth/bap*/
     - samples/bluetooth/cap*/
     - samples/bluetooth/ccp*/
@@ -678,7 +690,7 @@ Bluetooth ISO:
     - cvinayak
   files:
     - include/zephyr/bluetooth/iso.h
-    - doc/connectivity/bluetooth/shell/host/iso.rst
+    - doc/services/connectivity/bluetooth/shell/host/iso.rst
     - samples/bluetooth/iso_*/
     - subsys/bluetooth/host/iso.c
     - subsys/bluetooth/host/iso_internal.h
@@ -702,7 +714,7 @@ Bluetooth Mesh:
     - omkar3141
     - KyraLengfeld
   files:
-    - doc/connectivity/bluetooth/api/mesh/
+    - doc/services/connectivity/bluetooth/api/mesh/
     - include/zephyr/bluetooth/mesh/
     - include/zephyr/bluetooth/mesh.h
     - samples/bluetooth/mesh*/
@@ -725,7 +737,7 @@ Bluetooth Qualification:
     - jhedberg
     - alxelax
   files:
-    - doc/connectivity/bluetooth/autopts/
+    - doc/services/connectivity/bluetooth/autopts/
     - tests/bluetooth/qualification/
     - tests/bluetooth/tester/
     - tests/bsim/bluetooth/tester/
@@ -784,8 +796,11 @@ Bouffalolab Platforms:
     - boards/aithinker/ai_*/
     - boards/bflb/
     - boards/doiting/
+    - boards/sipeed/m0sense/
+    - boards/sipeed/m1s_dock/
     - boards/sipeed/maix_m0s_dock/
     - drivers/*/*bflb*
+    - drivers/sensor/bflb/
     - dts/riscv/bflb/
     - dts/bindings/*/bflb,*
     - soc/bflb/
@@ -1035,10 +1050,11 @@ Continuous Integration:
     - nashif
   collaborators:
     - fabiobaltieri
+    - henrikbrixandersen
     - kartben
   files:
     - .github/
-    - scripts/requirements-actions.*
+    - scripts/requirements-*
     - scripts/ci/
     - scripts/make_bugs_pickle.py
     - .checkpatch.conf
@@ -1142,7 +1158,7 @@ Demand Paging:
     - peter-mitsis
     - nashif
   files:
-    - subsys/demand_paging/
+    - subsys/mem_mgmt/demand_paging/
     - tests/kernel/mem_protect/demand_paging/
     - samples/subsys/demand_paging/
   tests:
@@ -1399,7 +1415,7 @@ Documentation Infrastructure:
     - boards/shields/mikroe_mcp251x_click/
     - boards/shields/mikroe_mcp251xfd_click/
     - boards/shields/tcan4550evm/
-    - doc/connectivity/canbus/
+    - doc/services/connectivity/canbus/
     - doc/hardware/peripherals/can/
     - drivers/can/
     - drivers/net/canbus.c
@@ -1412,7 +1428,6 @@ Documentation Infrastructure:
     - include/zephyr/net/canbus.h
     - include/zephyr/net/socketcan*.h
     - samples/drivers/can/
-    - samples/modules/canopennode/
     - samples/net/sockets/can/
     - samples/subsys/canbus/
     - scripts/west_commands/runners/canopen_program.py
@@ -1824,8 +1839,6 @@ Documentation Infrastructure:
     - aaronemassey
     - DBS06
     - teburd
-  collaborators:
-    - DBS06
   files:
     - drivers/fuel_gauge/
     - dts/bindings/fuel-gauge/
@@ -1903,7 +1916,6 @@ Documentation Infrastructure:
   status: maintained
   maintainers:
     - rriveramcrus
-  collaborators:
     - Liam-Ogletree
   files:
     - drivers/haptics/
@@ -2156,7 +2168,6 @@ Documentation Infrastructure:
 "Drivers: Mbox":
   status: odd fixes
   collaborators:
-    - wearyzen
     - ithinuel
   files:
     - include/zephyr/drivers/mbox.h
@@ -2431,6 +2442,8 @@ Documentation Infrastructure:
   status: maintained
   maintainers:
     - danieldegrasse
+  collaborators:
+    - lucien-nxp
   files:
     - drivers/sdhc/
     - tests/drivers/sdhc/
@@ -2606,9 +2619,9 @@ Documentation Infrastructure:
     - akanisetti
   files:
     - doc/hardware/peripherals/tgpio.rst
-    - drivers/misc/timeaware_gpio/
-    - include/zephyr/drivers/misc/timeaware_gpio/
-    - samples/drivers/misc/timeaware_gpio/
+    - drivers/timeaware_gpio/
+    - include/zephyr/drivers/timeaware_gpio.h
+    - samples/drivers/timeaware_gpio/
   labels:
     - "area: Time Aware GPIO"
   tests:
@@ -3444,7 +3457,7 @@ LoRa and LoRaWAN:
     - samples/subsys/lorawan/
     - include/zephyr/dt-bindings/lora/
     - dts/bindings/lora/
-    - doc/connectivity/lora_lorawan/index.rst
+    - doc/services/connectivity/lora_lorawan/index.rst
     - tests/subsys/lorawan/
     - tests/drivers/build_all/lora/
   labels:
@@ -3505,7 +3518,12 @@ MAINTAINERS file:
   labels:
     - "area: MAINTAINER File"
   description: >-
-    Zephyr Maintainers File
+    Zephyr Maintainers File and related scripts.
+
+    The maintainers of this area are appointed by the TSC and are responsible for
+    "approving individual sub-projects and designated maintainers" as per the
+    Zephyr charter. In this context "sub-projects" refer to areas
+    in the MAINTAINERS file.
 
 MCU Manager:
   status: maintained
@@ -3684,7 +3702,7 @@ Modbus:
     - include/zephyr/modbus/
     - tests/subsys/modbus/
     - subsys/modbus/
-    - doc/connectivity/modbus/
+    - doc/services/connectivity/modbus/
   labels:
     - "area: modbus"
   tests:
@@ -3871,7 +3889,7 @@ NXP Platforms (MCU):
     - tests/boards/vmu_rt1170/
   files-exclude:
     - dts/arm/nxp/imx/nxp_imx*
-    - boards/nxp/frdm_imx*/
+    - boards/nxp/frdm_imx[0-9]*/
   files-regex-exclude:
     - .*s32.*
   file-groups:
@@ -4084,21 +4102,21 @@ Networking:
     - include/zephyr/net/
     - samples/net/
     - subsys/net/
-    - doc/connectivity/networking/
+    - doc/services/connectivity/networking/
     - tests/net/
     - tests/unit/net_timeout/
   files-exclude:
-    - doc/connectivity/networking/api/gptp.rst
-    - doc/connectivity/networking/api/ieee802154.rst
-    - doc/connectivity/networking/api/ocpp.rst
-    - doc/connectivity/networking/api/ptp.rst
-    - doc/connectivity/networking/api/wifi.rst
-    - doc/connectivity/networking/api/http*.rst
-    - doc/connectivity/networking/api/ethernet*.rst
-    - doc/connectivity/networking/api/lldp.rst
-    - doc/connectivity/networking/api/vlan.rst
-    - doc/connectivity/networking/dsa*
-    - doc/connectivity/networking/eth_*.rst
+    - doc/services/connectivity/networking/api/gptp.rst
+    - doc/services/connectivity/networking/api/ieee802154.rst
+    - doc/services/connectivity/networking/api/ocpp.rst
+    - doc/services/connectivity/networking/api/ptp.rst
+    - doc/services/connectivity/networking/api/wifi.rst
+    - doc/services/connectivity/networking/api/http*.rst
+    - doc/services/connectivity/networking/api/ethernet*.rst
+    - doc/services/connectivity/networking/api/lldp.rst
+    - doc/services/connectivity/networking/api/vlan.rst
+    - doc/services/connectivity/networking/dsa*
+    - doc/services/connectivity/networking/eth_*.rst
     - include/zephyr/net/gptp.h
     - include/zephyr/net/ieee802154*.h
     - include/zephyr/net/ptp.h
@@ -4199,7 +4217,7 @@ Networking:
     - subsys/net/conn_mgr/
     - tests/net/conn_mgr_monitor/
     - tests/net/conn_mgr_conn/
-    - doc/connectivity/networking/conn_mgr/
+    - doc/services/connectivity/networking/conn_mgr/
   labels:
     - "area: Networking"
   tests:
@@ -4232,7 +4250,7 @@ Networking:
     - subsys/net/l2/ethernet/dsa/
     - drivers/ethernet/dsa/
     - dts/bindings/dsa/
-    - doc/connectivity/networking/dsa*
+    - doc/services/connectivity/networking/dsa*
     - include/zephyr/net/dsa*.h
     - include/zephyr/dt-bindings/ethernet/dsa*.h
     - samples/net/ethernet/dsa/
@@ -4260,10 +4278,10 @@ Networking:
     - tests/net/bridge/
     - tests/net/ethernet_mgmt/
     - tests/net/vlan/
-    - doc/connectivity/networking/api/ethernet*.rst
-    - doc/connectivity/networking/api/lldp.rst
-    - doc/connectivity/networking/api/vlan.rst
-    - doc/connectivity/networking/eth_*.rst
+    - doc/services/connectivity/networking/api/ethernet*.rst
+    - doc/services/connectivity/networking/api/lldp.rst
+    - doc/services/connectivity/networking/api/vlan.rst
+    - doc/services/connectivity/networking/eth_*.rst
   files-exclude:
     - subsys/net/l2/ethernet/dsa/
     - subsys/net/l2/ethernet/gptp/
@@ -4283,7 +4301,7 @@ Networking:
   collaborators:
     - matt-rodgers
   files:
-    - doc/connectivity/networking/api/http*.rst
+    - doc/services/connectivity/networking/api/http*.rst
     - include/zephyr/net/http/
     - subsys/net/lib/http/
     - samples/net/sockets/*http*/
@@ -4346,7 +4364,7 @@ Networking:
     - rlubos
     - jukkar
   files:
-    - doc/connectivity/networking/api/ieee802154.rst
+    - doc/services/connectivity/networking/api/ieee802154.rst
     - include/zephyr/net/ieee802154*.h
     - subsys/net/l2/ieee802154/
     - subsys/net/lib/config/ieee802154*
@@ -4364,7 +4382,7 @@ Networking:
     - samples/net/ocpp/
     - subsys/net/lib/ocpp/
     - tests/net/lib/ocpp/
-    - doc/connectivity/networking/api/ocpp.rst
+    - doc/services/connectivity/networking/api/ocpp.rst
   labels:
     - "area: OCPP"
 
@@ -4390,8 +4408,10 @@ Networking:
   status: maintained
   maintainers:
     - awojasinski
+  collaborators:
+    - DBS06
   files:
-    - doc/connectivity/networking/api/ptp.rst
+    - doc/services/connectivity/networking/api/ptp.rst
     - include/zephyr/net/ptp.h
     - subsys/net/lib/ptp/
     - samples/net/ptp/
@@ -4411,7 +4431,7 @@ Networking:
     - krish2718
     - MaochenWang1
   files:
-    - doc/connectivity/networking/api/wifi.rst
+    - doc/services/connectivity/networking/api/wifi.rst
     - include/zephyr/net/wifi*.h
     - subsys/net/l2/wifi/
     - samples/net/wifi/
@@ -4427,7 +4447,7 @@ Networking:
   maintainers:
     - jukkar
   files:
-    - doc/connectivity/networking/api/gptp.rst
+    - doc/services/connectivity/networking/api/gptp.rst
     - include/zephyr/net/gptp.h
     - samples/net/ethernet/gptp/
     - subsys/net/l2/ethernet/gptp/
@@ -4702,6 +4722,7 @@ RISCV arch:
     - npitre
     - VynDragon
     - ycsin
+    - maass-hamburg
   files:
     - arch/riscv/
     - boards/enjoydigital/litex_vexriscv/
@@ -4822,6 +4843,7 @@ Realtek Bee Platforms:
   status: maintained
   maintainers:
     - ZhiyuanTang17
+    - YuzhuoLiuRTK
   files:
     - boards/realtek/rtl87x2g*/
     - boards/realtek/rtl8752h*/
@@ -4868,8 +4890,8 @@ Realtek Fingerprint Platforms:
 Release:
   status: maintained
   maintainers:
-    - MaureenHelm
-    - stephanosio
+    - henrikbrixandersen
+    - teburd
   collaborators:
     - kartben
     - nashif
@@ -5657,9 +5679,7 @@ Twister:
   collaborators:
     - PerMac
     - hakehuang
-    - golowanow
     - gchwier
-    - LukaszMrugala
     - KamilxPaszkiet
     - fundakol
   files:
@@ -5682,9 +5702,10 @@ USB:
   status: maintained
   maintainers:
     - jfischer-no
-  collaborators:
     - tmon-nordic
+  collaborators:
     - josuah
+    - MarkWangChinese
   files:
     - drivers/usb/
     - dts/bindings/usb/
@@ -5697,7 +5718,7 @@ USB:
     - tests/drivers/build_all/usb/
     - tests/drivers/usb/
     - tests/drivers/udc/
-    - doc/connectivity/usb/
+    - doc/services/connectivity/usb/
   labels:
     - "area: USB"
   tests:
@@ -5717,7 +5738,7 @@ USB-C:
     - include/zephyr/usb_c/
     - samples/subsys/usb_c/
     - subsys/usb/usb_c/
-    - doc/connectivity/usb/pd/
+    - doc/services/connectivity/usb/pd/
     - doc/hardware/peripherals/usbc_vbus.rst
     - scripts/generate_usb_vif/
   labels:
@@ -5778,6 +5799,7 @@ Utilities:
     - dcpleung
     - peter-mitsis
   files:
+    - include/zephyr/data/cobs.h
     - lib/utils/
     - tests/unit/timeutil/
     - tests/unit/time_units/
@@ -5803,6 +5825,14 @@ Utilities:
     - utilities
     - libraries.ring_buffer
     - libraries.linear_range
+  file-groups:
+    - name: COBS
+      collaborators:
+        - pdgendt
+      files:
+        - include/zephyr/data/cobs.h
+        - lib/utils/cobs.c
+        - tests/lib/cobs/
 
 VFS:
   status: maintained
@@ -5843,6 +5873,7 @@ West:
     - mbolivar
     - carlescufi
     - marc-hb
+    - sylvioalves
   files:
     - scripts/west-commands.yml
     - scripts/west_commands/
@@ -5953,15 +5984,6 @@ West:
   files: []
   labels:
     - "platform: nRF BSIM"
-
-"West project: canopennode":
-  status: maintained
-  maintainers:
-    - henrikbrixandersen
-  files:
-    - modules/canopennode/
-  labels:
-    - "area: CAN"
 
 "West project: chre":
   status: maintained
@@ -6279,10 +6301,13 @@ West:
   status: maintained
   maintainers:
     - zjian-zhang
+    - ZhiyuanTang17
+  collaborators:
     - Derek-RTK
+    - YuzhuoLiuRTK
   files: []
   labels:
-    - "platform: Ameba"
+    - "platform: Realtek"
 
 "West project: hal_renesas":
   status: maintained
@@ -6536,7 +6561,6 @@ West:
     - valeriosetti
     - tomi-font
   collaborators:
-    - wearyzen
     - ithinuel
   files:
     - modules/mbedtls/
@@ -6691,7 +6715,6 @@ West:
     - tomi-font
   collaborators:
     - Vge0rge
-    - wearyzen
     - ithinuel
     - valeriosetti
     - JordanYates
@@ -6715,7 +6738,6 @@ West:
     - tomi-font
   collaborators:
     - Vge0rge
-    - wearyzen
     - ithinuel
     - valeriosetti
     - JordanYates
@@ -6745,20 +6767,6 @@ West:
   labels:
     - "area: Neural Networks"
 
-"West project: thrift":
-  status: maintained
-  maintainers:
-    - cfriedt
-  files:
-    - modules/thrift/
-    - samples/modules/thrift/
-    - tests/modules/thrift/
-  labels:
-    - "area: Thrift"
-    - "area: Serialization"
-  tests:
-    - thrift
-
 "West project: trusted-firmware-a":
   status: odd fixes
   collaborators:
@@ -6777,7 +6785,6 @@ West:
     - tomi-font
   collaborators:
     - Vge0rge
-    - wearyzen
     - ithinuel
     - valeriosetti
     - JordanYates
@@ -6785,6 +6792,7 @@ West:
     - modules/trusted-firmware-m/
     - samples/tfm_integration/
     - doc/services/tfm/
+    - tests/modules/tf-m/
   labels:
     - "area: TF-M"
   tests:

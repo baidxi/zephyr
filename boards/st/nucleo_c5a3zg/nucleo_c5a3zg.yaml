@@ -16,8 +16,11 @@ supported:
   - crc
   - dac
   - dma
+  - entropy
   - gpio
   - i2c
+  - i3c
+  - netif:eth
   - pwm
   - rtc
   - spi

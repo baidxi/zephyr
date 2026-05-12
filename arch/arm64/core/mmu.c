@@ -35,6 +35,11 @@ static uint64_t xlat_tables[CONFIG_MAX_XLAT_TABLES * Ln_XLAT_NUM_ENTRIES]
 static int xlat_use_count[CONFIG_MAX_XLAT_TABLES];
 static struct k_spinlock xlat_lock;
 
+static unsigned int xlat_used_count;
+static unsigned int xlat_peak_count;
+
+#define XLAT_LOW_WATER_THRESHOLD	((CONFIG_MAX_XLAT_TABLES * 7) / 8)
+
 /* Usage count value range */
 #define XLAT_PTE_COUNT_MASK	GENMASK(15, 0)
 #define XLAT_REF_COUNT_UNIT	BIT(16)
@@ -50,6 +55,18 @@ static uint64_t *new_table(void)
 		if (xlat_use_count[i] == 0) {
 			table = &xlat_tables[i * Ln_XLAT_NUM_ENTRIES];
 			xlat_use_count[i] = XLAT_REF_COUNT_UNIT;
+			xlat_used_count++;
+			if (xlat_used_count > xlat_peak_count) {
+				xlat_peak_count = xlat_used_count;
+#ifdef CONFIG_ARM64_MMU_REPORT_XLAT_TABLES_USAGE
+				LOG_INF("xlat tables: peak %u of %d allocated",
+					xlat_used_count, CONFIG_MAX_XLAT_TABLES);
+#endif
+				if (xlat_used_count == XLAT_LOW_WATER_THRESHOLD) {
+					LOG_WRN("xlat tables low: %u of %d in use",
+						xlat_used_count, CONFIG_MAX_XLAT_TABLES);
+				}
+			}
 			MMU_DEBUG("allocating table [%d]%p\n", i, table);
 			return table;
 		}
@@ -95,12 +112,10 @@ static int table_usage(uint64_t *table, int adjustment)
 		 "table PTE count overflow");
 
 	xlat_use_count[i] = new_count;
+	if (prev_count != 0 && new_count == 0) {
+		xlat_used_count--;
+	}
 	return new_count;
-}
-
-static inline void inc_table_ref(uint64_t *table)
-{
-	table_usage(table, XLAT_REF_COUNT_UNIT);
 }
 
 static inline void dec_table_ref(uint64_t *table)
@@ -113,11 +128,6 @@ static inline void dec_table_ref(uint64_t *table)
 static inline bool is_table_unused(uint64_t *table)
 {
 	return (table_usage(table, 0) & XLAT_PTE_COUNT_MASK) == 0;
-}
-
-static inline bool is_table_single_referenced(uint64_t *table)
-{
-	return table_usage(table, 0) < (2 * XLAT_REF_COUNT_UNIT);
 }
 
 #ifdef CONFIG_TEST
@@ -152,12 +162,6 @@ int arm64_mmu_tables_total_usage(void)
 static inline bool is_free_desc(uint64_t desc)
 {
 	return desc == 0;
-}
-
-static inline bool is_inval_desc(uint64_t desc)
-{
-	/* invalid descriptors aren't necessarily free */
-	return (desc & PTE_DESC_TYPE_MASK) == PTE_INVALID_DESC;
 }
 
 static inline bool is_table_desc(uint64_t desc, unsigned int level)
@@ -200,6 +204,12 @@ static inline bool is_desc_superset(uint64_t desc1, uint64_t desc2,
 }
 
 #if DUMP_PTE
+static inline bool is_inval_desc(uint64_t desc)
+{
+	/* invalid descriptors aren't necessarily free */
+	return (desc & PTE_DESC_TYPE_MASK) == PTE_INVALID_DESC;
+}
+
 static void debug_show_pte(uint64_t *pte, unsigned int level)
 {
 	MMU_DEBUG("%.*s", level * 2U, ". . . ");
@@ -428,6 +438,15 @@ static void del_mapping(uint64_t *table, uintptr_t virt, size_t size,
 }
 
 #ifdef CONFIG_USERSPACE
+static inline void inc_table_ref(uint64_t *table)
+{
+	table_usage(table, XLAT_REF_COUNT_UNIT);
+}
+
+static inline bool is_table_single_referenced(uint64_t *table)
+{
+	return table_usage(table, 0) < (2 * XLAT_REF_COUNT_UNIT);
+}
 
 static uint64_t *dup_table(uint64_t *src_table, unsigned int level)
 {
@@ -809,20 +828,6 @@ static void invalidate_tlb_all(void)
 	__asm__ volatile (
 	"dsb ishst; tlbi vmalle1; dsb ish; isb"
 	: : : "memory");
-#endif
-}
-
-static inline void invalidate_tlb_page(uintptr_t virt)
-{
-#ifdef CONFIG_SMP
-	/* Use IS variant to broadcast to all CPUs in Inner Shareable domain */
-	__asm__ volatile (
-	"dsb ishst; tlbi vae1is, %0; dsb ish; isb"
-	: : "r" (virt >> PAGE_SIZE_SHIFT) : "memory");
-#else
-	__asm__ volatile (
-	"dsb ishst; tlbi vae1, %0; dsb ish; isb"
-	: : "r" (virt >> PAGE_SIZE_SHIFT) : "memory");
 #endif
 }
 
@@ -1448,6 +1453,19 @@ void z_arm64_swap_mem_domains(struct k_thread *incoming)
 #endif /* CONFIG_USERSPACE */
 
 #ifdef CONFIG_DEMAND_PAGING
+static inline void invalidate_tlb_page(uintptr_t virt)
+{
+#ifdef CONFIG_SMP
+	/* Use IS variant to broadcast to all CPUs in Inner Shareable domain */
+	__asm__ volatile (
+	"dsb ishst; tlbi vae1is, %0; dsb ish; isb"
+	: : "r" (virt >> PAGE_SIZE_SHIFT) : "memory");
+#else
+	__asm__ volatile (
+	"dsb ishst; tlbi vae1, %0; dsb ish; isb"
+	: : "r" (virt >> PAGE_SIZE_SHIFT) : "memory");
+#endif
+}
 
 static uint64_t *get_pte_location(struct arm_mmu_ptables *ptables,
 				  uintptr_t virt)
@@ -1528,8 +1546,12 @@ void arch_mem_page_in(void *addr, uintptr_t phys)
 	/* mark as clean */
 	desc |= PTE_BLOCK_DESC_AP_RO;
 
-	/* and make it initially unaccessible to track unaccessed pages */
-	desc &= ~PTE_BLOCK_DESC_AF;
+	/* mark as accessed: the page-in was itself triggered by an access
+	 * (or an explicit k_mem_page_in pre-fetch), and the frame is added
+	 * to the LRU queue tail by the caller. Forcing an AF fault on first
+	 * use just to move tail→tail would be wasted work.
+	 */
+	desc |= PTE_BLOCK_DESC_AF;
 
 	*pte = desc;
 	MMU_DEBUG("page_in: virt=%#lx phys=%#lx\n", virt, phys);

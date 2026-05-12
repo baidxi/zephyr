@@ -20,6 +20,17 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
+	tsen: tsen {
+		compatible = "bflb,tsen";
+		io-channels = <&adc0 0>;
+		status = "disabled";
+	};
+
+	bt_hci_bflb: bt-hci {
+		compatible = "bflb,bt-hci";
+		status = "disabled";
+	};
+
 	clocks {
 		clk_rc32m: clk-rc32m {
 			#clock-cells = <0>;
@@ -154,7 +165,7 @@
 		};
 
 		gpios: gpio@20000000 {
-			compatible = "bflb,bl61x-gpio";
+			compatible = "bflb,bl61x_808-gpio";
 			reg = <0x20000000 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -425,6 +436,15 @@
 			reg = <0x20056000 0x1000>;
 			status = "okay";
 			size = <512>;
+		};
+
+		sdhc0: sdhc@20060000 {
+			compatible = "bflb,sdhc";
+			reg = <0x20060000 0x200>;
+			status = "disabled";
+
+			interrupts = <33 1>;
+			interrupt-parent = <&clic>;
 		};
 
 		sram0: memory@62fc0000 {

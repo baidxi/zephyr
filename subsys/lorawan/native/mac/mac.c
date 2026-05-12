@@ -95,7 +95,8 @@ int mac_do_tx_rx(struct lwan_ctx *ctx, const struct mac_tx_params *params)
 	int64_t tx_done_time;
 	int ret;
 
-	ret = region->get_tx_params(params->tx_dr_idx, &tx_dr, &tx_power);
+	ret = region->get_tx_params(params->tx_dr_idx, ctx->mac.tx_power_idx,
+				    &tx_dr, &tx_power);
 	if (ret != 0) {
 		return ret;
 	}
@@ -118,7 +119,7 @@ int mac_do_tx_rx(struct lwan_ctx *ctx, const struct mac_tx_params *params)
 	}
 
 	if (params->post_tx != NULL) {
-		params->post_tx(ctx);
+		params->post_tx(ctx, params->user_data);
 	}
 
 	/* --- RX1 window --- */
