@@ -1009,6 +1009,20 @@
 			};
 		};
 
+		usbotg_hs:usb@40040000 {
+			compatible = "st,stm32-otghs";
+			reg = <0x40040000 0x40000>;
+			interrupts = <91 0>;
+			interrupt-names = "otghs";
+			num-bidir-endpoints = <9>;
+			ram-size = <4096>;
+			maximum-speed = "high-speed";
+			phys = <&otghs_phy>;
+			clocks = <&rcc STM32_CLOCK(AHB1, 25)>,
+				 <&rcc STM32_SRC_PLL3_Q USBPHYCSEL(2)>;
+			status = "disabled";
+		};
+
 		usbotg_fs: usb@40080000 {
 			compatible = "st,stm32-otgfs";
 			reg = <0x40080000 0x40000>;
@@ -1135,6 +1149,13 @@
 
 	otgfs_phy: otgfs_phy {
 		compatible = "usb-nop-xceiv";
+		#phy-cells = <0>;
+	};
+
+	otghs_phy: otghs_phy {
+		compatible = "st,stm32h7rs-otghs-phy";
+		clocks = <&rcc STM32_CLOCK(AHB1, 26)>,
+			 <&rcc STM32_SRC_PLL3_Q USBPHYCSEL(2)>;
 		#phy-cells = <0>;
 	};
 

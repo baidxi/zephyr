@@ -120,6 +120,10 @@
 #define MCO2_PRE(val)           STM32_DT_CLOCK_SELECT((val), 28, 25, CFGR_REG)
 #define MCO2_SEL(val)           STM32_DT_CLOCK_SELECT((val), 31, 29, CFGR_REG)
 
+/** CCIPR1 devices */
+#define USBREFCKSEL(val)    STM32_DT_CLOCK_SELECT((val), 11, 8, D1CCIPR_REG)
+#define USBPHYCSEL(val)     STM32_DT_CLOCK_SELECT((val), 13, 12, D1CCIPR_REG)
+
 /* MCO prescaler : division factor */
 #define MCO_PRE_DIV_1 1
 #define MCO_PRE_DIV_2 2

@@ -1,0 +1,18 @@
+# Copyright (c) 2025 STMicroelectronics
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+    STM32H7RS series built-in USB OTG HS PHY (USBPHYC).
+    This PHY is controlled through RCC registers for clock
+    and power management.
+
+compatible: "st,stm32h7rs-otghs-phy"
+
+include: phy-controller.yaml
+
+properties:
+  "#phy-cells":
+    const: 0
+
+  clocks:
+    required: true
