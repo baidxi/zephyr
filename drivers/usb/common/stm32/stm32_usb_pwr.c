@@ -39,7 +39,20 @@ int stm32_usb_pwr_enable(void)
 		goto fini;
 	}
 
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
+#if defined(CONFIG_SOC_SERIES_STM32H7RSX)
+	/* Enable USB voltage detector (VDD33USB monitoring) */
+	LL_PWR_EnableUSBVoltageDetector();
+
+	/* Enable the USB regulator */
+	LL_PWR_EnableUSBReg();
+	while (!LL_PWR_IsActiveFlag_USB33RDY()) {
+		/* Wait for USB supply ready */
+	}
+
+	/* Enable USB HS PHY regulator (needed for HS PHY operation) */
+	LL_PWR_EnableUSBHSPHYReg();
+
+#elif defined(CONFIG_SOC_SERIES_STM32H7X)
 	LL_PWR_EnableUSBVoltageDetector();
 
 	/* Per AN2606: USBREGEN not supported when running in FS mode. */
@@ -149,7 +162,17 @@ int stm32_usb_pwr_disable(void)
 		goto fini;
 	}
 
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
+#if defined(CONFIG_SOC_SERIES_STM32H7RSX)
+	/* Disable USB HS PHY regulator */
+	LL_PWR_DisableUSBHSPHYReg();
+
+	/* Disable the USB regulator */
+	LL_PWR_DisableUSBReg();
+
+	/* Disable USB voltage detector */
+	LL_PWR_DisableUSBVoltageDetector();
+
+#elif defined(CONFIG_SOC_SERIES_STM32H7X)
 	LL_PWR_DisableUSBVoltageDetector();
 #elif defined(CONFIG_SOC_SERIES_STM32U5X)
 # if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_otghs)
