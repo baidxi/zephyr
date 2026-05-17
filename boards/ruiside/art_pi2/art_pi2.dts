@@ -90,9 +90,9 @@
 
 &pll3 {
     div-m = <24>;
-    mul-n = <480>;
+    mul-n = <240>;
     div-q = <10>;
-    div-r = <17>;
+    div-r = <1>;
     div-p = <2>;
     div-s = <2>;
     div-t = <2>;
