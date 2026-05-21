@@ -49,6 +49,35 @@ config USBD_VREQ_SUPPORT
 	  Allow the application to register a handler for the vendor request
 	  with the recipient device.
 
+config USBD_COMPOSITE_DEVICE
+	bool "USB Composite Device support"
+	help
+	  Enable composite device support. When enabled, multiple USB class
+	  instances registered to the same configuration are organized into
+	  function groups, each preceded by an IAD (Interface Association
+	  Descriptor) in the configuration descriptor.
+
+	  When enabled and multiple functions are selected, the device
+	  descriptor class code should be set to Miscellaneous (0xEF) with
+	  subclass 2 and protocol 1. Use usbd_device_set_code_triple() to
+	  configure this at runtime.
+
+	  Endpoint requirements for common functions (excluding EP0):
+	  - CDC ACM: 3 ep (1 INT IN, 1 BULK IN, 1 BULK OUT)
+	  - CDC ECM / NCM: 3 ep (1 INT IN, 1 BULK IN, 1 BULK OUT)
+	  - MSC: 2 ep (1 BULK IN, 1 BULK OUT)
+	  - HID: 1-2 ep (1 INT IN, optionally 1 INT OUT)
+	  - UVC: 2-3 ep
+	  - UAC2: 2-4 ep
+	  - MIDI2: 2 ep (1 BULK IN, 1 BULK OUT)
+	  - DFU (runtime): 0 ep
+	  - Loopback: 2 ep (1 BULK IN, 1 BULK OUT)
+
+	  Endpoint counts are combined when multiple functions are selected.
+	  Runtime validation during init will fail with an error if the MCU
+	  lacks sufficient endpoints. Check the MCU datasheet or DTS
+	  'num_bidir_endpoints' property for the available count.
+
 config USBD_SHELL
 	bool "USB device shell"
 	depends on SHELL
@@ -106,5 +135,6 @@ config USBD_HWINFO_DEVID_LENGTH
 
 rsource "class/Kconfig"
 rsource "app/Kconfig.cdc_acm_serial"
+rsource "app/Kconfig.usbd_fastbootd"
 
 endif # USB_DEVICE_STACK_NEXT

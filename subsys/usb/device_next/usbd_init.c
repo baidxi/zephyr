@@ -136,10 +136,29 @@ static int init_configuration_inst(struct usbd_context *const uds_ctx,
 		if ((*dhp)->bDescriptorType == USB_DESC_INTERFACE_ASSOC) {
 			iad = (struct usb_association_descriptor *)(*dhp);
 
-			/* IAD must be before interfaces it associates, so the
-			 * first interface will be the next interface assigned.
-			 */
-			iad->bFirstInterface = tmp_nif;
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+			if (c_nd->group_leader != NULL) {
+				/*
+				 * Composite mode: extract IAD to group leader.
+				 * bFirstInterface is set by init_configuration
+				 * at the group level; here we only copy the
+				 * class-specific fields (class/subclass/proto).
+				 */
+				struct usbd_class_node *leader =
+					c_nd->group_leader;
+
+				memcpy(&leader->group_iad, iad, sizeof(*iad));
+				leader->group_iad_valid = true;
+				c_nd->iad_promoted = true;
+			} else
+#endif /* CONFIG_USBD_COMPOSITE_DEVICE */
+			{
+				/*
+				 * Non-composite mode or leader itself:
+				 * modify IAD in place as before.
+				 */
+				iad->bFirstInterface = tmp_nif;
+			}
 		}
 
 		if ((*dhp)->bDescriptorType == USB_DESC_INTERFACE) {
@@ -150,6 +169,8 @@ static int init_configuration_inst(struct usbd_context *const uds_ctx,
 			if (ifd->bAlternateSetting == 0) {
 				ifd->bInterfaceNumber = tmp_nif;
 				c_nd->iface_bm |= BIT(tmp_nif);
+	LOG_DBG("set %s iface %u bInterfaceNumber=%u\n",
+				       c_nd->c_data->name, tmp_nif, tmp_nif);
 				tmp_nif++;
 			} else {
 				ifd->bInterfaceNumber = tmp_nif - 1;
@@ -207,21 +228,113 @@ static int init_configuration(struct usbd_context *const uds_ctx,
 			      struct usbd_config_node *const cfg_nd)
 {
 	struct usb_cfg_descriptor *cfg_desc = cfg_nd->desc;
-	struct usbd_class_node *c_nd;
+	struct usbd_class_node *c_nd, *group_member;
 	uint32_t config_ep_bm = 0;
 	size_t cfg_len = 0;
 	uint8_t nif = 0;
 	int ret;
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	/*
+	 * Phase 1: Build function groups.
+	 * Assign unique auto group_ids to classes with group_id == 0,
+	 * chain classes with same group_id via group_next, and leave
+	 * only group leaders in cfg_nd->class_list.
+	 */
+	struct usbd_class_node *leaders[256] = { NULL };
+	struct usbd_class_node **tails[256] = { NULL };
+	uint8_t next_auto_id = 1;
 
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		c_nd->group_next = NULL;
+		c_nd->iad_promoted = false;
+		c_nd->group_iad_valid = false;
+		if (c_nd->c_data->group_id == 0) {
+			c_nd->c_data->group_id = next_auto_id++;
+		}
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		uint8_t gid = c_nd->c_data->group_id;
+
+		if (leaders[gid] == NULL) {
+			leaders[gid] = c_nd;
+			tails[gid] = &c_nd->group_next;
+		} else {
+			*tails[gid] = c_nd;
+			tails[gid] = &c_nd->group_next;
+		}
+	}
+
+	sys_slist_init(&cfg_nd->class_list);
+	for (int i = 1; i < 256; i++) {
+		if (leaders[i] != NULL) {
+			sys_slist_append(&cfg_nd->class_list,
+					&leaders[i]->node);
+		}
+	}
+#endif /* CONFIG_USBD_COMPOSITE_DEVICE */
+
+	/*
+	 * Phase 2: Initialize each function group.
+	 * In composite mode, iterates group leaders and walks group_next.
+	 * In non-composite mode, class_list is flat as before.
+	 */
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+		uint8_t group_start_iface = nif;
+
+	LOG_DBG("processing group leader %s, nif=%d\n",
+		       c_nd->c_data->name, nif);
+
+		for (group_member = c_nd; group_member != NULL;
+		     group_member = group_member->group_next) {
+			group_member->group_leader = c_nd;
+			ret = init_configuration_inst(uds_ctx, speed,
+						      group_member,
+						      &config_ep_bm, &nif);
+			if (ret != 0) {
+				LOG_ERR("Failed to assign endpoint addresses");
+				return ret;
+			}
+		}
+
+		c_nd->group_iad.bFirstInterface = group_start_iface;
+		c_nd->group_iad.bInterfaceCount = nif - group_start_iface;
+		/* group_iad_valid set by init_configuration_inst if IAD found */
+#else
 		ret = init_configuration_inst(uds_ctx, speed, c_nd,
 					      &config_ep_bm, &nif);
 		if (ret != 0) {
 			LOG_ERR("Failed to assign endpoint addresses");
 			return ret;
 		}
+#endif
+	}
 
+	/*
+	 * Phase 3: Initialize class instances.
+	 */
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		for (group_member = c_nd; group_member != NULL;
+		     group_member = group_member->group_next) {
+			ret = usbd_class_init(group_member->c_data);
+			if (ret != 0) {
+				LOG_ERR("Failed to initialize class instance");
+				return ret;
+			}
+
+			LOG_DBG("Init class node %p, descriptor length %zu",
+				group_member->c_data,
+				usbd_class_desc_len(group_member->c_data,
+						    speed));
+			cfg_len += usbd_class_desc_len(group_member->c_data,
+						       speed);
+		}
+	}
+#else
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		ret = usbd_class_init(c_nd->c_data);
 		if (ret != 0) {
 			LOG_ERR("Failed to initialize class instance");
@@ -232,6 +345,7 @@ static int init_configuration(struct usbd_context *const uds_ctx,
 			c_nd->c_data, usbd_class_desc_len(c_nd->c_data, speed));
 		cfg_len += usbd_class_desc_len(c_nd->c_data, speed);
 	}
+#endif
 
 	/* Update wTotalLength and bNumInterfaces of configuration descriptor */
 	sys_put_le16(sizeof(struct usb_cfg_descriptor) + cfg_len,
@@ -243,6 +357,19 @@ static int init_configuration(struct usbd_context *const uds_ctx,
 		cfg_desc->wTotalLength);
 
 	/* Finally reset configuration's endpoint assignment */
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		for (group_member = c_nd; group_member != NULL;
+		     group_member = group_member->group_next) {
+			group_member->ep_assigned = group_member->ep_active;
+			ret = unassign_eps(uds_ctx, &config_ep_bm,
+					   &group_member->ep_active);
+			if (ret != 0) {
+				return ret;
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		c_nd->ep_assigned = c_nd->ep_active;
 		ret = unassign_eps(uds_ctx, &config_ep_bm, &c_nd->ep_active);
@@ -250,6 +377,7 @@ static int init_configuration(struct usbd_context *const uds_ctx,
 			return ret;
 		}
 	}
+#endif
 
 	return 0;
 }

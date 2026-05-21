@@ -1,0 +1,26 @@
+# Copyright (c) 2025 STMicroelectronics
+# SPDX-License-Identifier: Apache-2.0
+
+description: STM32H7RS OTG_HS DWC2 compatible controller
+
+compatible: "st,stm32h7rs-otghs"
+
+include: ["snps,dwc2.yaml", "pinctrl-device.yaml"]
+
+properties:
+  clocks:
+    required: true
+
+  interrupt-names:
+    type: string-array
+
+  maximum-speed:
+    type: string
+    description: |
+      Maximum USB speed supported by the controller.
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true

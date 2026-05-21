@@ -60,7 +60,11 @@ static int usbd_interface_modify(struct usbd_context *const uds_ctx,
 	bool found_iface = false;
 	int ret;
 
-	dhp = usbd_class_get_desc(c_nd->c_data, usbd_bus_speed(uds_ctx));
+	enum usbd_speed desc_speed = usbd_bus_speed(uds_ctx);
+
+	LOG_DBG("get_desc speed=%u for %s\n",
+	       desc_speed, c_nd->c_data->name);
+	dhp = usbd_class_get_desc(c_nd->c_data, desc_speed);
 	if (dhp == NULL) {
 		return -EINVAL;
 	}
@@ -71,6 +75,10 @@ static int usbd_interface_modify(struct usbd_context *const uds_ctx,
 
 		if ((*dhp)->bDescriptorType == USB_DESC_INTERFACE) {
 			ifd = (struct usb_if_descriptor *)(*dhp);
+
+	LOG_DBG("bNum=%u bAlt=%u want=%u:%u %s\n",
+			       ifd->bInterfaceNumber, ifd->bAlternateSetting,
+			       iface, alt, c_nd->c_data->name);
 
 			if (found_iface) {
 				break;
@@ -104,6 +112,10 @@ static int usbd_interface_modify(struct usbd_context *const uds_ctx,
 
 	/* TODO: rollback ep_bm on error? */
 
+	if (!found_iface) {
+	LOG_DBG("iface %u alt %u not found for %s\n",
+		       iface, alt, c_nd->c_data->name);
+	}
 	return found_iface ? 0 : -ENODATA;
 }
 
@@ -112,6 +124,38 @@ int usbd_interface_shutdown(struct usbd_context *const uds_ctx,
 {
 	struct usbd_class_node *c_nd;
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		struct usbd_class_node *member;
+
+		for (member = c_nd; member != NULL;
+		     member = member->group_next) {
+			uint32_t *ep_bm = &member->ep_active;
+
+			for (int idx = 1; idx < 16 && *ep_bm; idx++) {
+				uint8_t ep_in = USB_EP_DIR_IN | idx;
+				uint8_t ep_out = idx;
+				int ret;
+
+				if (usbd_ep_bm_is_set(ep_bm, ep_in)) {
+					ret = usbd_ep_disable(uds_ctx->dev,
+							      ep_in, ep_bm);
+					if (ret) {
+						return ret;
+					}
+				}
+
+				if (usbd_ep_bm_is_set(ep_bm, ep_out)) {
+					ret = usbd_ep_disable(uds_ctx->dev,
+							      ep_out, ep_bm);
+					if (ret) {
+						return ret;
+					}
+				}
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		uint32_t *ep_bm = &c_nd->ep_active;
 
@@ -135,6 +179,7 @@ int usbd_interface_shutdown(struct usbd_context *const uds_ctx,
 			}
 		}
 	}
+#endif
 
 	return 0;
 }
@@ -153,6 +198,7 @@ int usbd_interface_default(struct usbd_context *const uds_ctx,
 
 		class = usbd_class_get_by_config(uds_ctx, speed, new_cfg, i);
 		if (class == NULL) {
+	LOG_DBG("iface %u not found\n", i);
 			return -ENODATA;
 		}
 

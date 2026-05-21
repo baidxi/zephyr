@@ -495,6 +495,47 @@ static int sreq_get_desc_cfg(struct usbd_context *const uds_ctx,
 
 	net_buf_add_mem(buf, cfg_desc, MIN(net_buf_tailroom(buf), cfg_desc->bLength));
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		struct usbd_class_node *group_member;
+		struct usb_desc_header **dhp;
+
+		/* Write group IAD if this group has one */
+		if (c_nd->group_iad_valid) {
+			len = MIN(net_buf_tailroom(buf),
+				  c_nd->group_iad.bLength);
+			net_buf_add_mem(buf, &c_nd->group_iad, len);
+		}
+
+		/* Append descriptors for all class instances in this group */
+		for (group_member = c_nd; group_member != NULL;
+		     group_member = group_member->group_next) {
+			dhp = usbd_class_get_desc(group_member->c_data,
+						  get_desc_speed);
+			if (dhp == NULL) {
+				continue;
+			}
+
+			while (*dhp != NULL && (*dhp)->bLength != 0) {
+				/*
+				 * Skip IAD descriptors that have been
+				 * promoted to the group level.
+				 */
+				if (group_member->iad_promoted &&
+				    (*dhp)->bDescriptorType ==
+				    USB_DESC_INTERFACE_ASSOC) {
+					dhp++;
+					continue;
+				}
+
+				len = MIN(net_buf_tailroom(buf),
+					  (*dhp)->bLength);
+				net_buf_add_mem(buf, *dhp, len);
+				dhp++;
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		struct usb_desc_header **dhp;
 
@@ -509,6 +550,9 @@ static int sreq_get_desc_cfg(struct usbd_context *const uds_ctx,
 			dhp++;
 		}
 	}
+	LOG_DBG("cfg desc len=%u nif=%u\n",
+	       buf->len, cfg_desc->bNumInterfaces);
+#endif
 
 	if (buf->len > setup->wLength) {
 		net_buf_remove_mem(buf, buf->len - setup->wLength);

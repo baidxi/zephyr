@@ -57,11 +57,24 @@ usbd_class_get_by_config(struct usbd_context *const uds_ctx,
 		return NULL;
 	}
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		struct usbd_class_node *member;
+
+		for (member = c_nd; member != NULL;
+		     member = member->group_next) {
+			if (member->iface_bm & BIT(inum)) {
+				return member;
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		if (c_nd->iface_bm & BIT(inum)) {
 			return c_nd;
 		}
 	}
+#endif
 
 	return NULL;
 }
@@ -78,11 +91,24 @@ usbd_class_get_by_iface(struct usbd_context *const uds_ctx,
 		return NULL;
 	}
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		struct usbd_class_node *member;
+
+		for (member = c_nd; member != NULL;
+		     member = member->group_next) {
+			if (member->iface_bm & BIT(inum)) {
+				return member;
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		if (c_nd->iface_bm & BIT(inum)) {
 			return c_nd;
 		}
 	}
+#endif
 
 	return NULL;
 }
@@ -94,6 +120,31 @@ static bool xfer_owner_exist(struct usbd_context *const uds_ctx,
 	struct udc_buf_info *bi = udc_get_buf_info(buf);
 	struct usbd_class_node *c_nd;
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		struct usbd_class_node *member;
+
+		for (member = c_nd; member != NULL;
+		     member = member->group_next) {
+			if (bi->owner == member->c_data) {
+				uint32_t ep_active = member->ep_active;
+				uint32_t ep_assigned = member->ep_assigned;
+
+				if (!usbd_ep_bm_is_set(&ep_active, bi->ep)) {
+					LOG_DBG("ep 0x%02x is not active",
+						bi->ep);
+				}
+
+				if (!usbd_ep_bm_is_set(&ep_assigned, bi->ep)) {
+					LOG_DBG("ep 0x%02x is not assigned",
+						bi->ep);
+				}
+
+				return true;
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		if (bi->owner == c_nd->c_data) {
 			uint32_t ep_active = c_nd->ep_active;
@@ -110,6 +161,7 @@ static bool xfer_owner_exist(struct usbd_context *const uds_ctx,
 			return true;
 		}
 	}
+#endif
 
 	return false;
 }
@@ -165,11 +217,24 @@ usbd_class_get_by_ep(struct usbd_context *const uds_ctx,
 		return NULL;
 	}
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		struct usbd_class_node *member;
+
+		for (member = c_nd; member != NULL;
+		     member = member->group_next) {
+			if (member->ep_assigned & ep_bm) {
+				return member;
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		if (c_nd->ep_assigned & ep_bm) {
 			return c_nd;
 		}
 	}
+#endif
 
 	return NULL;
 }
@@ -186,6 +251,25 @@ usbd_class_get_by_req(struct usbd_context *const uds_ctx,
 		return NULL;
 	}
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		struct usbd_class_node *member;
+
+		for (member = c_nd; member != NULL;
+		     member = member->group_next) {
+			if (member->c_data->v_reqs == NULL) {
+				continue;
+			}
+
+			for (int i = 0; i < member->c_data->v_reqs->len; i++) {
+				if (member->c_data->v_reqs->reqs[i] ==
+				    request) {
+					return member;
+				}
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		if (c_nd->c_data->v_reqs == NULL) {
 			continue;
@@ -201,6 +285,7 @@ usbd_class_get_by_req(struct usbd_context *const uds_ctx,
 			}
 		}
 	}
+#endif
 
 	return NULL;
 }
@@ -278,6 +363,22 @@ int usbd_class_remove_all(struct usbd_context *const uds_ctx,
 		return -ENODATA;
 	}
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	while ((node = sys_slist_get(&cfg_nd->class_list))) {
+		c_nd = CONTAINER_OF(node, struct usbd_class_node, node);
+		struct usbd_class_node *member;
+
+		for (member = c_nd; member != NULL;
+		     member = member->group_next) {
+			atomic_clear_bit(&member->state,
+					 USBD_CCTX_REGISTERED);
+			usbd_class_shutdown(member->c_data);
+			member->c_data->uds_ctx = NULL;
+			LOG_DBG("Remove class node %p from configuration %u",
+				member, cfg);
+		}
+	}
+#else
 	while ((node = sys_slist_get(&cfg_nd->class_list))) {
 		c_nd = CONTAINER_OF(node, struct usbd_class_node, node);
 		atomic_clear_bit(&c_nd->state, USBD_CCTX_REGISTERED);
@@ -285,6 +386,7 @@ int usbd_class_remove_all(struct usbd_context *const uds_ctx,
 		c_nd->c_data->uds_ctx = NULL;
 		LOG_DBG("Remove class node %p from configuration %u", c_nd, cfg);
 	}
+#endif
 
 	return 0;
 }
@@ -293,9 +395,11 @@ int usbd_class_remove_all(struct usbd_context *const uds_ctx,
  * All the functions below are part of public USB device support API.
  */
 
-int usbd_register_class(struct usbd_context *const uds_ctx,
-			const char *name,
-			const enum usbd_speed speed, const uint8_t cfg)
+static int usbd_register_class_common(struct usbd_context *const uds_ctx,
+				      const char *name,
+				      const enum usbd_speed speed,
+				      const uint8_t cfg,
+				      const uint8_t group_id)
 {
 	struct usbd_class_node *c_nd;
 	struct usbd_class_data *c_data;
@@ -329,6 +433,10 @@ int usbd_register_class(struct usbd_context *const uds_ctx,
 		goto register_class_error;
 	}
 
+	IF_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE, (
+		c_data->group_id = group_id;
+	))
+
 	ret = usbd_class_append(uds_ctx, c_nd, speed, cfg);
 	if (ret == 0) {
 		/* Initialize pointer back to the device struct */
@@ -339,6 +447,24 @@ int usbd_register_class(struct usbd_context *const uds_ctx,
 register_class_error:
 	usbd_device_unlock(uds_ctx);
 	return ret;
+}
+
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+int usbd_register_class_with_group(struct usbd_context *const uds_ctx,
+				   const char *name,
+				   const enum usbd_speed speed,
+				   const uint8_t cfg,
+				   const uint8_t group_id)
+{
+	return usbd_register_class_common(uds_ctx, name, speed, cfg, group_id);
+}
+#endif
+
+int usbd_register_class(struct usbd_context *const uds_ctx,
+			const char *name,
+			const enum usbd_speed speed, const uint8_t cfg)
+{
+	return usbd_register_class_common(uds_ctx, name, speed, cfg, 0);
 }
 
 static bool is_blocklisted(const struct usbd_class_node *const c_nd,

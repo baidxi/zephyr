@@ -1,0 +1,40 @@
+# Copyright (c) 2024
+#
+# SPDX-License-Identifier: Apache-2.0
+
+config USBD_FASTBOOTD
+	bool "USB Bootloader composite device (CDC ACM + Fastboot)"
+	help
+	  Automatically initializes a composite USB device with CDC ACM
+	  and Fastboot classes via SYS_INIT. Use this for bootloader
+	  applications that need serial console and firmware update
+	  over USB.
+
+if USBD_FASTBOOTD
+
+config USBD_FASTBOOTD_VID
+	hex "USB Vendor ID"
+	default 0x2FE3
+
+config USBD_FASTBOOTD_PID
+	hex "USB Product ID"
+	default 0x1001
+
+config USBD_FASTBOOTD_MANUFACTURER_STRING
+	string "Manufacturer string"
+	default "ART-Pi2"
+
+config USBD_FASTBOOTD_PRODUCT_STRING
+	string "Product string"
+	default "ART-Pi2 Bootloader"
+
+config USBD_FASTBOOTD_MAX_POWER
+	int "Max power (2mA units)"
+	default 250
+	range 0 500
+
+config USBD_FASTBOOTD_SELF_POWERED
+	bool "Self-powered"
+	default n
+
+endif

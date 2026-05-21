@@ -14,6 +14,9 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/iterable_sections.h>
 
+#include "usbd_device.h"
+#include "usbd_config.h"
+
 /* Default configurations used in the shell context. */
 USBD_CONFIGURATION_DEFINE(config_1_fs, USB_SCD_REMOTE_WAKEUP, 200, NULL);
 USBD_CONFIGURATION_DEFINE(config_1_hs, USB_SCD_REMOTE_WAKEUP, 200, NULL);
@@ -87,6 +90,32 @@ static int cmd_register(const struct shell *sh,
 
 	return ret;
 }
+
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+static int cmd_register_with_group(const struct shell *sh,
+				   size_t argc, char **argv)
+{
+	uint8_t cfg, group_id;
+	int ret;
+
+	cfg = strtol(argv[3], NULL, 10);
+	group_id = strtol(argv[4], NULL, 10);
+	ret = usbd_register_class_with_group(my_uds_ctx, argv[1],
+					     current_cmd_speed, cfg,
+					     group_id);
+	if (ret) {
+		shell_error(sh,
+			"dev: failed to register USB class %s to config %s %u group %u",
+			argv[1], argv[2], cfg, group_id);
+	} else {
+		shell_print(sh,
+			"dev: register USB class %s to config %s %u group %u",
+			argv[1], argv[2], cfg, group_id);
+	}
+
+	return ret;
+}
+#endif /* CONFIG_USBD_COMPOSITE_DEVICE */
 
 static int cmd_unregister(const struct shell *sh,
 			  size_t argc, char **argv)
@@ -617,6 +646,12 @@ SHELL_STATIC_SUBCMD_SET_CREATE(class_cmds,
 		      SHELL_HELP("Registers class instance",
 				"<name> <speed> <configuration value>"),
 		      cmd_register, 4, 0),
+	IF_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE, (
+	SHELL_CMD_ARG(register_group, &dsub_node_name,
+		      SHELL_HELP("Registers class instance with group ID",
+				"<name> <speed> <configuration value> <group_id>"),
+		      cmd_register_with_group, 5, 0),
+	))
 	SHELL_CMD_ARG(unregister, &dsub_node_name,
 		      SHELL_HELP("Unregisters class instance",
 				"<name> <speed> <configuration value>"),

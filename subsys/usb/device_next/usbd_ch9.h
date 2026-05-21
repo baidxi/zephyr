@@ -92,14 +92,14 @@ static inline int usbd_get_alt_value(const struct usbd_context *const uds_ctx,
 }
 
 /**
- * @brief Set interface alternate value
- *
- * @param[in] uds_ctx Pointer to a device context
- * @param[in] iface   Interface number
- * @param[out] alt    Alternate value
- *
- * @return 0 on success, other values on fail.
- */
+	* @brief Set interface alternate value
+	*
+	* @param[in] uds_ctx Pointer to a device context
+	* @param[in] iface   Interface number
+	* @param[out] alt    Alternate value
+	*
+	* @return 0 on success, other values on fail.
+	*/
 static inline int usbd_set_alt_value(struct usbd_context *const uds_ctx,
 				     const uint8_t iface,
 				     const uint8_t alt)

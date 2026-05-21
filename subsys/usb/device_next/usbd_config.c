@@ -61,6 +61,20 @@ static void usbd_config_classes_enable(struct usbd_config_node *const cfg_nd,
 {
 	struct usbd_class_node *c_nd;
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		struct usbd_class_node *member;
+
+		for (member = c_nd; member != NULL;
+		     member = member->group_next) {
+			if (enable) {
+				usbd_class_enable(member->c_data);
+			} else {
+				usbd_class_disable(member->c_data);
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		if (enable) {
 			usbd_class_enable(c_nd->c_data);
@@ -68,6 +82,7 @@ static void usbd_config_classes_enable(struct usbd_config_node *const cfg_nd,
 			usbd_class_disable(c_nd->c_data);
 		}
 	}
+#endif
 }
 
 /* Reset configuration to addressed state, shutdown all endpoints */
@@ -110,6 +125,9 @@ int usbd_config_set(struct usbd_context *const uds_ctx,
 	const enum usbd_speed speed = usbd_bus_speed(uds_ctx);
 	int ret;
 
+	LOG_DBG("new_cfg=%u speed=%u current_cfg=%u\n",
+	       new_cfg, speed, usbd_get_config_value(uds_ctx));
+
 	if (usbd_get_config_value(uds_ctx) != 0) {
 		ret = usbd_config_reset(uds_ctx);
 		if (ret) {
@@ -125,6 +143,8 @@ int usbd_config_set(struct usbd_context *const uds_ctx,
 
 	cfg_nd = usbd_config_get(uds_ctx, speed, new_cfg);
 	if (cfg_nd == NULL) {
+	LOG_DBG("cfg %u not found speed=%u\n",
+		       new_cfg, speed);
 		return -ENODATA;
 	}
 

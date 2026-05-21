@@ -99,6 +99,28 @@ static void usbd_class_bcast_event(struct usbd_context *const uds_ctx,
 		return;
 	}
 
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
+		struct usbd_class_node *member;
+
+		for (member = c_nd; member != NULL;
+		     member = member->group_next) {
+			switch (event->type) {
+			case UDC_EVT_SUSPEND:
+				usbd_class_suspended(member->c_data);
+				break;
+			case UDC_EVT_RESUME:
+				usbd_class_resumed(member->c_data);
+				break;
+			case UDC_EVT_SOF:
+				usbd_class_sof(member->c_data);
+				break;
+			default:
+				break;
+			}
+		}
+	}
+#else
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		switch (event->type) {
 		case UDC_EVT_SUSPEND:
@@ -114,6 +136,7 @@ static void usbd_class_bcast_event(struct usbd_context *const uds_ctx,
 			break;
 		}
 	}
+#endif
 }
 
 static int event_handler_bus_reset(struct usbd_context *const uds_ctx)

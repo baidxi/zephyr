@@ -188,7 +188,6 @@ struct usbd_config_node {
 	sys_slist_t class_list;
 };
 
-/* TODO: Kconfig option USBD_NUMOF_INTERFACES_MAX? */
 #define USBD_NUMOF_INTERFACES_MAX	16U
 
 /**
@@ -219,6 +218,7 @@ struct usbd_ch9_data {
 	/** Post status stage work required, e.g. set new device address */
 	bool post_status;
 	/** Array to track interfaces alternate settings */
+	/* TODO: make configurable based on registered class count */
 	uint8_t alternate[USBD_NUMOF_INTERFACES_MAX];
 };
 
@@ -390,6 +390,17 @@ struct usbd_class_data {
 	const struct usbd_cctx_vendor_req *v_reqs;
 	/** Pointer to private data */
 	void *priv;
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	/**
+	 * Function group ID for composite device support.
+	 *
+	 * - 0 (default): framework assigns a unique default group
+	 *   (each class with group_id=0 gets its own independent group)
+	 * - Non-zero: classes with the same non-zero group_id belong
+	 *   to the same function group
+	 */
+	uint8_t group_id;
+#endif
 };
 
 /**
@@ -417,6 +428,29 @@ struct usbd_class_node {
 	uint32_t iface_bm;
 	/** Variable to store the state of the class instance */
 	atomic_t state;
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+	/**
+	 * Back-pointer to the group leader. NULL if this node is itself
+	 * a group leader. Set by init_configuration during group building.
+	 */
+	struct usbd_class_node *group_leader;
+	/**
+	 * Next class_node in the same function group (singly-linked list).
+	 * NULL for the last node in the group. Only the group leader
+	 * (first node) stays in cfg_nd->class_list.
+	 */
+	struct usbd_class_node *group_next;
+	/**
+	 * IAD descriptor for this function group.
+	 * Valid only for the group leader node. Filled by the framework
+	 * during configuration initialization from the class descriptor chain.
+	 */
+	struct usb_association_descriptor group_iad;
+	/** True if the IAD has been promoted from class chain to group_iad */
+	bool iad_promoted : 1;
+	/** True if group_iad contains valid data */
+	bool group_iad_valid : 1;
+#endif
 };
 
 /** @endcond */
@@ -757,6 +791,46 @@ static inline void *usbd_class_get_private(const struct usbd_class_data *const c
 		.api = class_api,						\
 		.v_reqs = class_v_reqs,						\
 		.priv = class_priv,						\
+		IF_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE, (			\
+		.group_id = 0,							\
+		))								\
+	};									\
+	static STRUCT_SECTION_ITERABLE_ALTERNATE(				\
+		usbd_class_fs, usbd_class_node, class_name##_fs) = {		\
+		.c_data = &class_name,						\
+	};									\
+	IF_ENABLED(USBD_SUPPORTS_HIGH_SPEED, (					\
+	static STRUCT_SECTION_ITERABLE_ALTERNATE(				\
+		usbd_class_hs, usbd_class_node, class_name##_hs) = {		\
+		.c_data = &class_name,						\
+	}									\
+	))
+
+/**
+ * @brief Define USB device support class data with explicit function group
+ *
+ * Like USBD_DEFINE_CLASS(), but allows specifying a function group ID for
+ * composite device support. Classes with the same non-zero group_id are
+ * organized into the same function group.
+ *
+ * Only available when CONFIG_USBD_COMPOSITE_DEVICE is enabled.
+ *
+ * @param class_name   Class name
+ * @param class_api    Pointer to struct usbd_class_api
+ * @param class_priv   Class private data
+ * @param class_v_reqs Pointer to struct usbd_cctx_vendor_req
+ * @param class_group  Function group ID
+ */
+#define USBD_COMPOSITE_CLASS_DEFINE(class_name, class_api, class_priv,		\
+				    class_v_reqs, class_group)			\
+	BUILD_ASSERT(IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE),			\
+		     "CONFIG_USBD_COMPOSITE_DEVICE must be enabled");		\
+	static struct usbd_class_data class_name = {				\
+		.name = STRINGIFY(class_name),					\
+		.api = class_api,						\
+		.v_reqs = class_v_reqs,						\
+		.priv = class_priv,						\
+		.group_id = class_group,					\
 	};									\
 	static STRUCT_SECTION_ITERABLE_ALTERNATE(				\
 		usbd_class_fs, usbd_class_node, class_name##_fs) = {		\
@@ -834,6 +908,30 @@ int usbd_add_configuration(struct usbd_context *uds_ctx,
 			   struct usbd_config_node *cd);
 
 /**
+ * @brief Register an USB class instance with function group ID
+ *
+ * Like usbd_register_class(), but allows specifying a function group ID
+ * for composite device support. Classes with the same non-zero group_id
+ * are organized into the same function group and share an IAD descriptor.
+ *
+ * Only available when CONFIG_USBD_COMPOSITE_DEVICE is enabled.
+ *
+ * @param[in] uds_ctx  Pointer to USB device support context
+ * @param[in] name     Class instance name
+ * @param[in] speed    Configuration speed
+ * @param[in] cfg      Configuration value (bConfigurationValue)
+ * @param[in] group_id Function group ID (0 = auto-assign default group)
+ *
+ * @return 0 on success, other values on fail.
+ */
+#if IS_ENABLED(CONFIG_USBD_COMPOSITE_DEVICE)
+int usbd_register_class_with_group(struct usbd_context *uds_ctx,
+				   const char *name,
+				   const enum usbd_speed speed,
+				   uint8_t cfg, uint8_t group_id);
+#endif
+
+/**
  * @brief Register an USB class instance
  *
  * An USB class implementation can have one or more instances.
@@ -846,6 +944,9 @@ int usbd_add_configuration(struct usbd_context *uds_ctx,
  * Registered instances are initialized at initialization
  * of the USB device stack, and the interface descriptors
  * of each instance are adapted to the whole context.
+ *
+ * If CONFIG_USBD_COMPOSITE_DEVICE is enabled, this is equivalent to
+ * calling usbd_register_class_with_group() with group_id = 0.
  *
  * @param[in] uds_ctx Pointer to USB device support context
  * @param[in] name    Class instance name
