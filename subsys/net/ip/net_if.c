@@ -1715,8 +1715,7 @@ static void rejoin_ipv6_mcast_groups(struct net_if *iface)
 
 	net_if_lock(iface);
 
-	if (!net_if_flag_is_set(iface, NET_IF_IPV6) ||
-	    net_if_flag_is_set(iface, NET_IF_IPV6_NO_ND)) {
+	if (!net_if_flag_is_set(iface, NET_IF_IPV6)) {
 		goto out;
 	}
 
@@ -1724,13 +1723,20 @@ static void rejoin_ipv6_mcast_groups(struct net_if *iface)
 		goto out;
 	}
 
-	/* Rejoin solicited node multicasts. */
-	ARRAY_FOR_EACH(ipv6->unicast, i) {
-		if (!ipv6->unicast[i].is_used) {
-			continue;
-		}
+	/* Rejoin solicited node multicasts if the interface has ND enabled. */
+	if (!net_if_flag_is_set(iface, NET_IF_IPV6_NO_ND)) {
+		ARRAY_FOR_EACH(ipv6->unicast, i) {
+			if (!ipv6->unicast[i].is_used) {
+				continue;
+			}
 
-		join_mcast_nodes(iface, &ipv6->unicast[i].address.in6_addr);
+			join_mcast_nodes(iface, &ipv6->unicast[i].address.in6_addr);
+		}
+	}
+
+	/* If MLD is disabled on the interface, skip rejoining. */
+	if (net_if_flag_is_set(iface, NET_IF_IPV6_NO_MLD)) {
+		goto out;
 	}
 
 	sys_slist_init(&rejoin_needed);
@@ -1782,6 +1788,11 @@ static void clear_joined_ipv6_mcast_groups(struct net_if *iface)
 	net_if_lock(iface);
 
 	if (!net_if_flag_is_set(iface, NET_IF_IPV6)) {
+		goto out;
+	}
+
+	/* If MLD is disabled on the interface, skip clearing. */
+	if (net_if_flag_is_set(iface, NET_IF_IPV6_NO_MLD)) {
 		goto out;
 	}
 
@@ -3722,6 +3733,67 @@ out:
 	net_if_unlock(iface);
 
 	return ret;
+}
+
+bool net_if_ipv4_addr_onlink(struct net_if **iface, const struct net_in_addr *addr)
+{
+	struct net_if *best_iface = NULL;
+	uint8_t best_len = 0U;
+
+	if (iface == NULL || *iface == NULL) {
+		return false;
+	}
+
+	STRUCT_SECTION_FOREACH(net_if, tmp) {
+		struct net_if_ipv4 *ipv4;
+
+		if (*iface != tmp) {
+			continue;
+		}
+
+		net_if_lock(tmp);
+
+		ipv4 = tmp->config.ip.ipv4;
+		if (ipv4 == NULL) {
+			net_if_unlock(tmp);
+			continue;
+		}
+
+		ARRAY_FOR_EACH(ipv4->unicast, i) {
+			uint32_t mask;
+			uint32_t subnet;
+			uint8_t mask_len;
+
+			if (!ipv4->unicast[i].ipv4.is_used ||
+			    ipv4->unicast[i].ipv4.address.family != NET_AF_INET) {
+				continue;
+			}
+
+			mask = ipv4->unicast[i].netmask.s_addr;
+			subnet = UNALIGNED_GET(&addr->s_addr) & mask;
+
+			if ((ipv4->unicast[i].ipv4.address.in_addr.s_addr & mask) != subnet) {
+				continue;
+			}
+
+			mask_len = (uint8_t)__builtin_popcount(net_ntohl(mask));
+			if (mask_len <= best_len) {
+				continue;
+			}
+
+			best_len = mask_len;
+			best_iface = tmp;
+		}
+
+		net_if_unlock(tmp);
+	}
+
+	if (best_iface != NULL) {
+		*iface = best_iface;
+		return true;
+	}
+
+	return false;
 }
 
 bool net_if_ipv4_addr_mask_cmp(struct net_if *iface,

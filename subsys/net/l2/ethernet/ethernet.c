@@ -493,6 +493,7 @@ static int ethernet_ll_prepare_on_ipv4(struct net_if *iface,
 				       struct net_pkt **out)
 {
 	struct ethernet_context *ctx = net_if_l2_data(iface);
+	__maybe_unused const struct net_in_addr *request_ip = net_pkt_ipv4_ll_resolve_addr(pkt);
 
 	if (IS_ENABLED(CONFIG_NET_VLAN) &&
 	    net_pkt_vlan_tag(pkt) != NET_VLAN_TAG_UNSPEC &&
@@ -502,13 +503,20 @@ static int ethernet_ll_prepare_on_ipv4(struct net_if *iface,
 		net_pkt_set_iface(pkt, iface);
 	}
 
+	if (net_pkt_lladdr_dst(pkt)->len > 0U) {
+		return NET_ARP_COMPLETE;
+	}
+
 	if (ethernet_ipv4_dst_is_broadcast_or_mcast(pkt)) {
 		return NET_ARP_COMPLETE;
 	}
 
 	if (IS_ENABLED(CONFIG_NET_ARP)) {
 		return net_arp_prepare(pkt,
-				       (struct net_in_addr *)NET_IPV4_HDR(pkt)->dst, NULL, out);
+				       request_ip != NULL ?
+				       (struct net_in_addr *)request_ip :
+				       (struct net_in_addr *)NET_IPV4_HDR(pkt)->dst,
+				       NULL, out);
 	}
 
 	return NET_ARP_COMPLETE;
@@ -987,22 +995,6 @@ const struct device *z_impl_net_eth_get_ptp_clock_by_index(int index)
 	return NULL;
 }
 #endif /* CONFIG_PTP_CLOCK */
-
-#if defined(CONFIG_NET_L2_PTP)
-int net_eth_get_ptp_port(struct net_if *iface)
-{
-	struct ethernet_context *ctx = net_if_l2_data(iface);
-
-	return ctx->port;
-}
-
-void net_eth_set_ptp_port(struct net_if *iface, int port)
-{
-	struct ethernet_context *ctx = net_if_l2_data(iface);
-
-	ctx->port = port;
-}
-#endif /* CONFIG_NET_L2_PTP */
 
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 int net_eth_promisc_mode(struct net_if *iface, bool enable)

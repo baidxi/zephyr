@@ -41,6 +41,38 @@ Boards
   populated the Kconfig values). If either option is manually adjusted, it will cause
   :kconfig:option:`CONFIG_SRAM_DEPRECATED_KCONFIG_SET` to be set which indicates this deprecation.
 
+* The internal Nordic SoC platform Kconfig symbols ``NRF_PLATFORM_HALTIUM``
+  and ``NRF_PLATFORM_LUMOS`` are no longer used by in-tree code, which now
+  relies on explicit :kconfig:option:`CONFIG_SOC_SERIES_NRF54H`,
+  :kconfig:option:`CONFIG_SOC_SERIES_NRF92`,
+  :kconfig:option:`CONFIG_SOC_SERIES_NRF54L` and
+  :kconfig:option:`CONFIG_SOC_SERIES_NRF71` checks. Both symbols are kept
+  as deprecated stubs that default to ``y`` when the corresponding SoC
+  series is selected, so existing ``CONFIG_NRF_PLATFORM_*=y`` lines and
+  ``depends on NRF_PLATFORM_*`` clauses keep building with a Kconfig
+  deprecation warning. Out-of-tree Kconfig, CMake and code using these
+  symbols should be updated:
+
+  * The ``CONFIG_NRF_PLATFORM_HALTIUM`` with
+    :kconfig:option:`CONFIG_SOC_SERIES_NRF54H` or
+    :kconfig:option:`CONFIG_SOC_SERIES_NRF92`.
+  * The ``CONFIG_NRF_PLATFORM_LUMOS`` with
+    :kconfig:option:`CONFIG_SOC_SERIES_NRF54L` or
+    :kconfig:option:`CONFIG_SOC_SERIES_NRF71`.
+
+* The Nordic sysbuild Kconfig option ``SB_CONFIG_NRF_HALTIUM_GENERATE_UICR``
+  has been renamed to :kconfig:option:`SB_CONFIG_NRF_GENERATE_UICR`.
+  Update sysbuild configurations to use the new name.
+
+* The Nordic SoC headers :file:`<haltium_power.h>` and :file:`<haltium_pm_s2ram.h>`
+  have been renamed to :file:`<soc_power.h>` and :file:`<soc_pm_s2ram.h>` respectively.
+  Forwarder headers under the old names remain available and emit a ``#warning``
+  pointing to the new include paths. Out-of-tree code that includes the old paths
+  should be updated:
+
+  * ``#include <haltium_power.h>`` with ``#include <soc_power.h>``.
+  * ``#include <haltium_pm_s2ram.h>`` with ``#include <soc_pm_s2ram.h>``.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -61,6 +93,13 @@ Haptics
 
 .. zephyr-keep-sorted-start re(^\w) ignorecase
 
+ADC
+===
+
+* The ``girqs`` and ``pcrs`` properties (array type) of :dtcompatible:`microchip,xec-adc` have been
+  replaced by encoded ``girqs`` (using ``MCHP_XEC_ECIA_GIRQ_ENC`` macros) and ``pcr-scr`` (int type)
+  for encoded PCR register index and bit position (:github:`105658`).
+
 Clock Control
 =============
 
@@ -69,6 +108,15 @@ Clock Control
   ``clock-div`` properties remain supported but are deprecated. Existing
   RT11xx overlays should be updated using the mapping
   ``loop-div = clock-mult * 2`` and ``post-div = clock-div``.
+
+Devicetree
+==========
+
+* ``int`` and ``array`` typed devicetree properties whose DTS source uses a negative literal
+  (e.g. ``<(-1)>``) now expand to a negative value instead of the two's-complement unsigned
+  value used previously. Code that relied on the old unsigned representation, for example
+  unsigned comparisons or ``BUILD_ASSERT(DT_PROP(node, foo) > 0, ...)`` checks, must be updated
+  to use signed types or signed-aware checks (:github:`107271`).
 
 Digital Microphone
 ==================
@@ -79,6 +127,14 @@ Digital Microphone
   instances to ``DEVICE_API(dmic, ...)``. See :github:`107695` for examples of how in-tree drivers
   have been updated. Application code using :c:func:`dmic_configure`, :c:func:`dmic_trigger`, and
   :c:func:`dmic_read` is not impacted.
+
+Display
+=======
+
+* The Kconfig options ``CONFIG_SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_*`` for SDL display pixel-format
+  selection have been removed in favour of setting the pixel-format property directly in devicetree
+  on the SDL pseudo-device node using the PANEL_PIXEL_FORMAT_* macros from
+  :zephyr_file:`include/zephyr/dt-bindings/display/panel.h`. (:github:`104099`)
 
 Ethernet
 ========
@@ -94,6 +150,18 @@ Ethernet
 * The ``pinctrl-0`` and ``pinctrl-names`` devicetree properties for the
   :dtcompatible:`nxp,enet-mac` need to be moved from the MAC node to the parent Ethernet controller
   node. (:github:`107352`)
+
+* ``port_generate_random_mac`` of the :c:struct:`dsa_api` got removed. Also
+  :c:struct:`dsa_port_config` now uses :c:struct:`net_eth_mac_config` to set the MAC address.
+  ``mac_addr`` and ``use_random_mac_addr`` members of :c:struct:`dsa_port_config` were removed.
+  Out-of-tree DSA drivers must update their port configuration code to use the new API and
+  structures. (:github:`108952`)
+
+* The Kconfig option ``CONFIG_ETH_NATIVE_TAP_PTP_CLOCK`` has been replaced by
+  :kconfig:option:`CONFIG_PTP_CLOCK_NATIVE`. A new compatible
+  :dtcompatible:`zephyr,native-ptp-clock` has been added for the native_sim PTP clock driver.
+  :kconfig:option:`CONFIG_PTP_CLOCK_NATIVE` is enabled by default when the
+  :dtcompatible:`zephyr,native-ptp-clock` compatible is present.
 
 Flash
 =====
@@ -112,6 +180,35 @@ GPIO
   behavior as before since these flags were effectively ignored. (:github:`104690`)
 
 * On STM32F1 series, GPIO output pins now use 50 MHz max. speed instead of 10 MHz. (:github:`104690`)
+
+Input
+=====
+
+* The ``no-disconnect`` property of :dtcompatible:`gpio-keys` has been replaced by enumeration
+  property ``zephyr,suspend-action``. The new property currently has three values, two of which
+  are direct replacements for the old situations:
+
+    * ``zephyr,suspend-action = "none";`` is the remplacement for the behavior when
+      when ``no-disconnect`` was present. Users of the ``no-disconnect`` property
+      should replace it with ``zephyr,suspend-action = "none";``.
+
+    * ``zephyr,suspend-action = "disconnect-with-pupd";`` is the replacement for the
+      behavior when ``no-disconnect`` was not present. This is selected by default
+      for backwards compatibility with the previous behavior.
+
+    * ``zephyr,suspend-action = "full-disconnect";`` is a new value.
+      (Refer to :dtcompatible:`the binding <gpio-keys>` for more details)
+
+  Users of the default configuration are advised to reconsider whether it really is appropriate;
+  migration to ``zephyr,suspend-action = "full-disconnect";`` is recommended. (:github:`108294`)
+
+* Kconfig options for the ft6146, ft5336, and cst8xx input drivers have been renamed to be
+  consistent with the other input drivers. Applications using the following Kconfig options
+  must update their configurations accordingly:
+
+  * ``CONFIG_INPUT_FT5336_PERIOD`` → :kconfig:option:`CONFIG_INPUT_FT5336_PERIOD_MS`
+  * ``CONFIG_INPUT_CST8XX_PERIOD`` → :kconfig:option:`CONFIG_INPUT_CST8XX_PERIOD_MS`
+  * ``CONFIG_INPUT_FT6146_PERIOD`` → :kconfig:option:`CONFIG_INPUT_FT6146_PERIOD_MS`
 
 NXP
 ===
@@ -159,6 +256,11 @@ SD Host Controller
   consolidated into the existing ``pwr-gpios`` property. Replace
   ``sdhi-on-gpios`` with ``pwr-gpios`` in out-of-tree devicetree nodes.
 
+* :dtcompatible:`litex,mmc` now uses the ``dma-coherent`` devicetree property to indicate that the
+  controller's DMA accesses are coherent with the CPU.
+  :kconfig:option:`CONFIG_SDHC_LITEX_LITESDCARD_NO_COHERENT_DMA` is automatically set based on that
+  property and is no longer user-configurable. (:github:`108411`)
+
 Sensor
 ======
 
@@ -167,8 +269,18 @@ Sensor
   GIRQ configuration is now handled via the ``microchip,dmec-ecia-girq`` binding include
   (:github:`104808`).
 
+Serial
+======
+
+* The return type of :c:func:`uart_irq_update` is now ``void`` instead of ``int``.
+  (:github:`105231`)
+
 STM32
 =====
+
+* :dtcompatible:`gpio-keys` devices will fail to suspend unless property ``zephyr,suspend-action``
+  is present in Devicetree with value ``"none"`` or ``"full-disconnect"``. Refer to the migration
+  guide entry related to this binding for more details. (:github:`104690` / :github:`108294`)
 
 * SoC DTSI files now consistently use interrupt priority zero for all peripherals.
   Applications must now explicitly configure interrupt priorities using Devicetree
@@ -182,6 +294,14 @@ Syscon
   larger register offsets. Code that explicitly declares ``uint16_t`` variables for the
   register parameter or implements the syscon driver API functions may need to be updated.
 
+USB
+===
+
+* On STM32N6, the ``clocks`` cell which configures the USBPHYC clock mux has been moved
+  from :samp:`usbotg_hs{N}` to :samp:`usbphyc{N}` nodes at SoC DTSI level. Boards which
+  use an STM32N6 SoC with custom clock mux configuration must now set the ``clocks``
+  property on :samp:`usbphyc{N}` instead of :samp:`usbotg_hs{N}`. (:github:`107813`)
+
 WiFi
 ====
 
@@ -189,6 +309,11 @@ WiFi
   :c:struct:`ethernet_api` and :c:struct:`wifi_mgmt_ops`, a additional argument was added for
   a pointer to :c:struct:`net_if`. This api is not directly exposed to the application, so only
   out-of-tree drivers need to be updated. (:github:`106086`)
+
+* The Espressif Wi-Fi driver Kconfig option ``CONFIG_ESP32_WIFI_STA_AUTO_DHCPV4`` has been
+  removed in favor of the generic :kconfig:option:`CONFIG_WIFI_STA_AUTO_DHCPV4`. Applications
+  that previously disabled the Espressif-specific option must now disable the generic option
+  to retain manual DHCPv4 or static IP behavior after STA connection.
 
 .. zephyr-keep-sorted-stop
 
@@ -256,6 +381,12 @@ Bluetooth Audio
     ``BT_TBS_TECHNOLOGY`` to ``BT_BEARER_TECH``. Additionally the values are now defined in
     :zephyr_file:`include/zephyr/bluetooth/assigned_numbers.h` instead of
     :zephyr_file:`include/zephyr/bluetooth/audio/tbs.h`. (:github:`102430`)
+  * ``bt_tbs_register_param.supported_features`` has been renamed to
+    :c:member:`bt_tbs_register_param.optional_opcodes`. Applications can do a simple
+    search-and-replace for ``supported_features`` to ``optional_opcodes``.
+    Additionally the ``BT_TBS_FEATURE_*`` macros have been changed to ``BT_TBS_OPTIONAL_OPCODE_*``.
+    Applications can do a simple search-and-replace for ``BT_TBS_FEATURE_`` to
+    ``BT_TBS_OPTIONAL_OPCODE_``. (:github:`103350`)
 
 * CSIP
 
@@ -292,11 +423,21 @@ Bluetooth HCI
 Networking
 **********
 
+* Various IP routing related Kconfig options will have now ``IPV6`` prefix added to
+  them. This is done so that we can have IPv4 routing symbols that provide same
+  functionality as IPv6 ones but can be controlled separately.
+
 Ethernet
 ========
 
 * :kconfig:option:`CONFIG_NET_DEFAULT_IF_ETHERNET` now allows to get the first ethernet interface,
   instead of the first between ethernet and wifi.
+
+* The :kconfig:option:`CONFIG_ETH_QEMU_EXTRA_ARGS` and
+  :kconfig:option:`CONFIG_NET_QEMU_USER_EXTRA_ARGS` options can no longer be used to specify the MAC
+  address for the QEMU Ethernet device. Instead, :kconfig:option:`CONFIG_NET_QEMU_DEVICE_EXTRA_ARGS`
+  can be used. This is because we are no longer using the ``-nic`` option for QEMU, but the
+  ``-netdev`` and ``-device`` options. (:github:`107326`)
 
 PTP
 ===
@@ -308,13 +449,26 @@ PTP
   * :kconfig:option:`CONFIG_PTP_UDP_IPv6_PROTOCOL` to
     :kconfig:option:`CONFIG_PTP_UDP_IPV6_PROTOCOL`
 
+gPTP
+====
+
+* Converted ``int port`` to ``uint16_t gptp_port`` in
+  :c:struct:`ethernet_context` to make it clear that the field used only
+  by the gPTP stack to store the gPTP port number.
+
+* Used ``uint16_t`` for ``nb_ports`` in :c:struct:`gptp_default_ds` per
+  IEEE 1588 standard.
+
+* Removed ``net_eth_get_ptp_port`` and ``net_eth_set_ptp_port``.
+  New :c:func:`gptp_get_port_number` and :c:func:`gptp_set_port_number`
+  can be used instead.
+
 Other subsystems
 ****************
 
 * Demand paging (``subsys/demand_paging``) is moved under Memory Management
   into ``subsys/mem_mgmt/demand_paging``. Custom backing store and eviction algorithm code need
   to be moved there.
-
 
 * The ring buffer "item" API in ``<zephyr/sys/ring_buffer.h>`` has been deprecated in favor of the new
   fixed-size queue API in ``<zephyr/sys/ringq.h>``.
@@ -323,6 +477,27 @@ Other subsystems
   :ref:`fixed_size_ringq_api`). Code that only used the item API at the byte level should switch to
   the byte-mode functions :c:func:`ring_buf_put` / :c:func:`ring_buf_get` calls on the same
   :c:struct:`ring_buf`. (:github:`98255`)
+
+* The :c:func:`ZTEST_BENCHMARK_SETUP_TEARDOWN` and :c:func:`ZTEST_BENCHMARK_TIMED_SETUP_TEARDOWN` macros have
+  been removed. Their setup/teardown signature has been folded into :c:func:`ZTEST_BENCHMARK` and
+  :c:func:`ZTEST_BENCHMARK_TIMED`, which now require explicit ``setup_fn`` and ``teardown_fn``
+  arguments at every call site. Pass ``NULL`` when a benchmark genuinely needs neither.
+
+  Update existing call sites as follows:
+
+  .. code-block:: c
+
+     /* Before */
+     ZTEST_BENCHMARK(suite, my_bench, 100) { /* ... */ }
+     ZTEST_BENCHMARK_TIMED(suite, my_bench, 1000) { /* ... */ }
+     ZTEST_BENCHMARK_SETUP_TEARDOWN(suite, my_bench, 100, setup, teardown) { /* ... */ }
+     ZTEST_BENCHMARK_TIMED_SETUP_TEARDOWN(suite, my_bench, 1000, setup, teardown) { /* ... */ }
+
+     /* After */
+     ZTEST_BENCHMARK(suite, my_bench, 100, NULL, NULL) { /* ... */ }
+     ZTEST_BENCHMARK_TIMED(suite, my_bench, 1000, NULL, NULL) { /* ... */ }
+     ZTEST_BENCHMARK(suite, my_bench, 100, setup, teardown) { /* ... */ }
+     ZTEST_BENCHMARK_TIMED(suite, my_bench, 1000, setup, teardown) { /* ... */ }
 
 Modules
 *******
@@ -345,6 +520,10 @@ Mbed TLS
   implicitly enabled by :kconfig:option:`CONFIG_MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ENABLED`.
   Out-of-tree applications or board configurations that rely on TLS 1.3 PSK early data (0-RTT)
   must now explicitly enable :kconfig:option:`CONFIG_MBEDTLS_SSL_EARLY_DATA`.
+
+* ``CONFIG_PSA_CRYPTO_CLIENT`` has been removed as it was a duplicate of
+  :kconfig:option:`CONFIG_PSA_CRYPTO`. If you were using it, use
+  :kconfig:option:`CONFIG_PSA_CRYPTO` instead. (:github:`108960`)
 
 Architectures
 *************

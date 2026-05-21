@@ -502,6 +502,8 @@ Bluetooth Audio:
     - pin-zephyr
     - niym-ot
     - jthm-ot
+    - alexsven
+    - koffes
   files:
     - subsys/bluetooth/audio/
     - include/zephyr/bluetooth/audio/
@@ -590,6 +592,7 @@ Bluetooth HCI:
     - HoZHel
     - cvinayak
     - HaavardRei
+    - merin-infineon
   files:
     - include/zephyr/drivers/bluetooth/
     - include/zephyr/drivers/bluetooth.h
@@ -765,6 +768,10 @@ Board/SoC configuration:
 
 Boards/SoCs:
   status: odd fixes
+  collaborators:
+    - kartben
+    - nordicjm
+    - sylvioalves
   files:
     - boards/
     - soc/
@@ -1157,6 +1164,7 @@ Demand Paging:
     - ceolin
     - peter-mitsis
     - nashif
+    - npitre
   files:
     - subsys/mem_mgmt/demand_paging/
     - tests/kernel/mem_protect/demand_paging/
@@ -1290,9 +1298,9 @@ Documentation:
   status: maintained
   maintainers:
     - kartben
-    - carlescufi
   collaborators:
     - nashif
+    - carlescufi
   files:
     - CODE_OF_CONDUCT.md
     - CONTRIBUTING.rst
@@ -1666,8 +1674,6 @@ Documentation Infrastructure:
 "Drivers: EDAC":
   status: maintained
   maintainers:
-    - finikorg
-  collaborators:
     - yvesll
   files:
     - drivers/edac/
@@ -1801,7 +1807,7 @@ Documentation Infrastructure:
     - tests/drivers/firmware/
     - include/zephyr/drivers/firmware/
     - dts/bindings/firmware/
-    - doc/hardware/arch/arm-scmi.rst
+    - doc/hardware/firmware/
     - samples/drivers/firmware/
   labels:
     - "area: Firmware"
@@ -2602,6 +2608,7 @@ Documentation Infrastructure:
     - andyross
   collaborators:
     - teburd
+    - npitre
   files:
     - drivers/timer/
     - include/zephyr/drivers/timer/
@@ -3088,6 +3095,7 @@ Infineon Platforms:
     - jsbatch
     - Peterson-Brett
     - lauracarlesso
+    - merin-infineon
   files:
     - boards/cypress/
     - boards/infineon/
@@ -3295,6 +3303,7 @@ Kernel:
     - cfriedt
     - npitre
     - TaiJuWu
+    - Mattemagikern
   files:
     - doc/kernel/
     - include/zephyr/kernel*.h
@@ -4814,6 +4823,7 @@ Raspberry Pi Pico Platforms:
     - boards/sparkfun/rp2040_mikrobus/
     - boards/waveshare/rp2040_zero/
     - boards/wiznet/w5500_evb_pico*/
+    - boards/wiznet/w6100_evb_pico*/
     - dts/arm/raspberrypi/rpi_pico/
     - dts/bindings/*/raspberrypi,pico*
     - dts/vendor/raspberrypi/
@@ -5551,6 +5561,7 @@ Test Framework (Ztest):
     - jeremybettis
     - yperess
     - asemjonovs
+    - Mattemagikern
   files:
     - subsys/testsuite/
     - tests/ztest/
@@ -5562,6 +5573,22 @@ Test Framework (Ztest):
     - "area: Testsuite"
   tests:
     - testing
+
+Testing:
+  status: maintained
+  maintainers:
+    - PerMac
+    - hakehuang
+  collaborators:
+    - nashif
+  files: []
+  description: >-
+    This area is for testing activities on hardware and in emulators. It is not
+    meant to be a catch-all for tests, but rather a place to identify
+    collaboratorts and files related to testing activities that don't fit in
+    other areas.
+    Anyone involved with testing and filing/triaging issues who are not active
+    in other areas are encouraged to be listed here as collaborators.
 
 Testing with Renode:
   # This area is to be converted to a subarea
@@ -5671,6 +5698,17 @@ Tracing:
     - "area: tracing"
   tests:
     - tracing
+
+Trenz Electronic Platforms:
+  status: maintained
+  maintainers:
+    - yashi
+  files:
+    - boards/trenz/
+  labels:
+    - "platform: Trenz Electronic"
+  description: >-
+    Trenz Electronic development boards.
 
 Twister:
   status: maintained
@@ -6189,6 +6227,7 @@ West:
     - jsbatch
     - Peterson-Brett
     - lauracarlesso
+    - merin-infineon
   files:
     - modules/Kconfig.infineon
     - modules/hal_infineon/
@@ -6827,6 +6866,14 @@ West:
   files: []
   labels:
     - "area: Rust"
+
+Wiki:
+  status: maintained
+  maintainers:
+    - kartben
+  collaborators:
+    - SusanRemm
+  files: []
 
 Wurth Elektronik Platforms:
   status: maintained
