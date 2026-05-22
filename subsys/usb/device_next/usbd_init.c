@@ -228,7 +228,7 @@ static int init_configuration(struct usbd_context *const uds_ctx,
 			      struct usbd_config_node *const cfg_nd)
 {
 	struct usb_cfg_descriptor *cfg_desc = cfg_nd->desc;
-	struct usbd_class_node *c_nd, *group_member;
+	struct usbd_class_node *c_nd;
 	uint32_t config_ep_bm = 0;
 	size_t cfg_len = 0;
 	uint8_t nif = 0;
@@ -244,6 +244,7 @@ static int init_configuration(struct usbd_context *const uds_ctx,
 	struct usbd_class_node *leaders[256] = { NULL };
 	struct usbd_class_node **tails[256] = { NULL };
 	uint8_t next_auto_id = 1;
+	struct usbd_class_node *group_member;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&cfg_nd->class_list, c_nd, node) {
 		c_nd->group_next = NULL;

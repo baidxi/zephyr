@@ -146,9 +146,9 @@ static struct fastboot_ctx fb_ctx;
 static struct usbd_class_data *fb_c_data;
 static const struct fastboot_ops *fb_ops;
 
-/* ============================================================
+/*
  * Descriptor Management
- * ============================================================ */
+ **/
 
 static void fastboot_init_desc(void)
 {
@@ -204,9 +204,9 @@ static void *fastboot_get_desc(struct usbd_class_data *const c_data,
 	return (void *)fastboot_fs_desc;
 }
 
-/* ============================================================
+/*
  * Response Helpers
- * ============================================================ */
+ **/
 
 static int fastboot_send(struct usbd_class_data *c_data,
 			 const char *data, size_t len)
@@ -235,9 +235,9 @@ static int fastboot_send(struct usbd_class_data *c_data,
 	char _b[64]; int _n = snprintf(_b, sizeof(_b), "FAIL%s", (m)); \
 	fastboot_send((c), _b, _n); } while(0)
 
-/* ============================================================
+/*
  * Command Handlers
- * ============================================================ */
+ **/
 
 static void cmd_getvar(struct usbd_class_data *c, const char *arg)
 {
@@ -401,9 +401,9 @@ static void cmd_erase(struct usbd_class_data *c, const char *arg)
 	}
 }
 
-/* ============================================================
+/*
  * Command Dispatcher
- * ============================================================ */
+ **/
 
 static void handle_cmd(struct usbd_class_data *c, const char *cmd)
 {
@@ -426,9 +426,9 @@ static void handle_cmd(struct usbd_class_data *c, const char *cmd)
 	}
 }
 
-/* ============================================================
+/*
  * Data Processor
- * ============================================================ */
+ **/
 
 static void fastboot_process_data(struct usbd_class_data *c_data,
 				  const uint8_t *data, size_t len)
@@ -470,9 +470,9 @@ static void fastboot_process_data(struct usbd_class_data *c_data,
 	}
 }
 
-/* ============================================================
+/*
  * USB Class API Callbacks
- * ============================================================ */
+ **/
 
 static int fastboot_request(struct usbd_class_data *const c_data,
 			    struct net_buf *buf, int err)
@@ -554,9 +554,9 @@ static const struct usbd_class_api fastboot_class_api = {
 
 USBD_DEFINE_CLASS(fastboot_class, &fastboot_class_api, &fb_ctx, NULL);
 
-/* ============================================================
+/*
  * Default Partition Table Support
- * ============================================================ */
+ **/
 
 static const struct fastboot_part *fb_parts;
 static size_t fb_num_parts;
@@ -578,9 +578,9 @@ static struct fastboot_ops default_ops = {
 	.get_partition = default_get_partition,
 };
 
-/* ============================================================
+/*
  * Public API
- * ============================================================ */
+ **/
 
 int fastboot_register_partitions(const struct fastboot_part *parts,
 				 size_t num_parts)
