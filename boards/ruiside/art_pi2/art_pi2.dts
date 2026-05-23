@@ -23,7 +23,7 @@
 
 	ext_flash_mem: memory@70000000 {
     compatible = "zephyr,memory-region";
-    reg = <0x70000000 DT_SIZE_M(256)>;
+    reg = <0x70000000 DT_SIZE_M(512)>;
     zephyr,memory-region = "EXTMEM";
     zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_FLASH)>;
   };
@@ -169,7 +169,7 @@
   ext_flash_ctrl: xspi-nor-flash@0 {
     compatible = "st,stm32-xspi-nor";
     reg = <0>;
-    size = <DT_SIZE_M(1024)>;
+    size = <DT_SIZE_M(512)>;
     ospi-max-frequency = <DT_FREQ_M(50)>;
     spi-bus-width = <XSPI_SPI_MODE>;
     data-rate = <XSPI_STR_TRANSFER>;
@@ -191,9 +191,9 @@
         #size-cells = <1>;
 
         storage_partition: partition@0 {
-					label = "storage_partition";
-					reg = <0x00000000 0x2000>;
-				};
+			label = "storage_partition";
+			reg = <0x00000000 0x2000>;
+		};
       };
     };
   };
