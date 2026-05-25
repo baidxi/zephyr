@@ -1,4 +1,4 @@
-# Copyright (c) 2025
+# Copyright (c) 2026 juno <baidxi404629@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
 if SOC_SUN8I_V3S
@@ -7,7 +7,7 @@ config NUM_IRQS
 	default 156
 
 config SYS_CLOCK_HW_CYCLES_PER_SEC
-	default $(dt_node_int_prop_int,/cpus/cpu@0,clock-frequency)
+	default $(dt_node_int_prop_int,/timer,clock-frequency)
 
 if SERIAL
 

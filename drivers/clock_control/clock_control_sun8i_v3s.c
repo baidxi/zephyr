@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025
+ * Copyright (c) 2026 juno <baidxi404629@gmail.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -306,7 +306,9 @@ static int sun8i_ccu_set_cpu_clock(const struct device *dev, uint32_t target_fre
 			reg_val &= ~(CPU_CLK_SRC_SEL_MASK);
 			reg_val |= 1 << CPU_CLK_SRC_SEL_SHIFT;
 			sys_write32(reg_val, config->base + CCU_CPU_AXI_CFG);
-			return sun8i_cpu_clk_set_rate(config->base, osc->freq, target_freq);
+			/* Convert Hz to KHz for internal functions */
+			return sun8i_cpu_clk_set_rate(config->base,
+				osc->freq / 1000, target_freq / 1000);
 		}
 	}
 
