@@ -1,0 +1,20 @@
+# Copyright (c) 2026 juno <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner Sun8i V3s Timer (parent bus node)
+
+compatible: "allwinner,sun8i-v3s-timer"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    type: phandle-array
+    required: true
+    description: Fixed-frequency reference clock (typically osc24M)

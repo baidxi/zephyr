@@ -1,0 +1,43 @@
+# Copyright (c) 2026 juno <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner Sun8i V3s Counter (per-timer, 1 alarm channel)
+
+compatible: "allwinner,sun8i-v3s-counter"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+    description: Timer index (0, 1, or 2)
+
+  clocks:
+    type: phandle-array
+    required: true
+    description: Fixed-frequency reference clock
+
+  clock-source:
+    type: int
+    required: true
+    enum:
+      - 0
+      - 1
+    description: |
+      Clock source mux: 0=internal_div_512 (~32KHz), 1=osc24 (OSC24M)
+
+  prescaler:
+    type: int
+    required: true
+    enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+    description: |
+      Prescaler divider: 0 means /1, 1 means /2, 2 means /4, 3 means /8,
+      4 means /16, 5 means /32, 6 means /64, 7 means /128.

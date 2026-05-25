@@ -1,0 +1,15 @@
+# Copyright (c) 22026 juno <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner Sun8i V3s AVS Counter (inherits base/clocks from parent)
+
+compatible: "allwinner,sun8i-v3s-avs"
+
+include: base.yaml
+
+properties:
+  divisor:
+    type: int
+    default: 1499
+    description: |
+      AVS Counter clock divisor: freq = parent_clock_freq / (divisor + 1).

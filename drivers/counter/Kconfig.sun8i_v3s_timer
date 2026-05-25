@@ -1,0 +1,22 @@
+# Copyright (c) 2026 juno <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config COUNTER_TIMER_SUN8I_V3S
+	bool "Allwinner Sun8i V3s Timer Counter driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_COUNTER_ENABLED
+	help
+	  Enable counter driver for Allwinner Sun8i V3s Timer channels.
+	  Each counter device maps to one hardware timer (Timer 0/1/2)
+	  with configurable clock source and prescaler.
+
+if COUNTER_TIMER_SUN8I_V3S
+
+config COUNTER_AVS_SUN8I_V3S
+	bool "AVS (Audio/Video Sync) Counter"
+	default y
+	help
+	  Enable the AVS Counter device (33-bit free-running up-counter,
+	  no alarm capability). Configured via the 'divisor' DT property.
+
+endif # COUNTER_TIMER_SUN8I_V3S
