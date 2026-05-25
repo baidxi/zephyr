@@ -197,7 +197,7 @@
 
 		timer0: timer@1c20c00 {
 			compatible = "allwinner,sun8i-v3s-timer";
-			reg = <0x01c20c00 0xa0>;
+			reg = <0x01c20c00 0xdc>;
 			interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
 				     <GIC_SPI 19 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
 				     <GIC_SPI 20 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
