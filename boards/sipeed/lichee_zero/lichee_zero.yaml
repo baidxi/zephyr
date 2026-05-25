@@ -1,8 +1,8 @@
 identifier: lichee_zero
 name: Sipeed Lichee Zero
-type: mcu
+type: soc
 arch: arm
-ram: 64
+ram: 65536
 vendor: sipeed
 toolchain:
   - zephyr
