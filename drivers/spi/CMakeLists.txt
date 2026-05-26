@@ -76,6 +76,7 @@ zephyr_library_sources_ifdef(CONFIG_SPI_SILABS_SIWX91X_GSPI spi_silabs_siwx91x_g
 zephyr_library_sources_ifdef(CONFIG_SPI_SILABS_USART spi_silabs_usart.c)
 zephyr_library_sources_ifdef(CONFIG_SPI_SMARTBOND spi_smartbond.c)
 zephyr_library_sources_ifdef(CONFIG_SPI_STM32 spi_stm32.c)
+zephyr_library_sources_ifdef(CONFIG_SPI_SUN8I_V3S spi_sun8i_v3s.c)
 zephyr_library_sources_ifdef(CONFIG_SPI_SY1XX spi_sy1xx.c)
 zephyr_library_sources_ifdef(CONFIG_SPI_TELINK_B91 spi_b91.c)
 zephyr_library_sources_ifdef(CONFIG_SPI_TEST spi_test.c)

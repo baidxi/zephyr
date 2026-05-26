@@ -2,6 +2,7 @@ config PINCTRL_SUN8I_V3S
     bool "Allwinner SUN8I v3s SoC pin controller driver"
     default y
     depends on DT_HAS_ALLWINNER_SUN8I_V3S_PINCTRL_ENABLED
-    select PINCTRL_STORE_REG
     help
-      Allwinner SUN8I v3s SoC pin controller driver
+      Allwinner SUN8I v3s SoC pin controller driver.
+      Manages its own PIO base address via DT_INST_REG_ADDR(0),
+      does not rely on the consumer device's reg parameter.

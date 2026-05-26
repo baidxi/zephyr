@@ -1,0 +1,78 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner sun8i V3s SPI controller
+
+compatible: "allwinner,sun8i-v3s-spi"
+
+include: [spi-controller.yaml, pinctrl-device.yaml, reset-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  clock-names:
+    required: true
+
+  resets:
+    required: true
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  dmas:
+    type: phandle-array
+    description: |
+      Optional TX & RX DMA specifiers. Each specifier will have a phandle
+      reference to the DMA controller, the channel number, and peripheral
+      trigger source.
+
+  dma-names:
+    type: string-array
+    description: |
+      Required if the dmas property exists. Should be "tx" and "rx"
+      to match the dmas property.
+
+  clock-frequency:
+    type: int
+    description: SPI source clock frequency (Hz)
+
+  clock-source:
+    type: phandle-array
+    specifier-space: clock-source
+    description: |
+      Phandle reference to the SPI module clock source oscillator.
+      Determines the parent clock for CLK_SPI0 (CCU offset 0xA0):
+        <&osc24M>       — HOSC 24 MHz
+        <&pll_periph0>  — PLL_PERIPH0 600 MHz (if available)
+        <&pll_periph1>  — PLL_PERIPH1 600 MHz (if available)
+
+  gpio-cs:
+    type: phandle
+    description: |
+      When present, hardware CS (SPI_TCR.SS_SEL) is not used.
+      CS control is handled via cs-gpios property (from spi-controller.yaml)
+      and spi_context_cs_control(). Without this property, the driver
+      uses the built-in SPI CS signals (SS0-SS3).
+
+  allwinner,data-width:
+    type: int
+    default: 8
+    enum:
+      - 8
+      - 16
+      - 32
+    description: |
+      AHB bus access width for SPI FIFO data port (TXD/RXD).
+      8: byte access, 1 FIFO entry per access (default, safest)
+      16: half-word access, 2 FIFO entries per access
+      32: word access, 4 FIFO entries per access (best performance)

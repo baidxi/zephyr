@@ -8,6 +8,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/drivers/clock_control.h>
+#include <zephyr/drivers/clock_control_sun8i_v3s.h>
 #include <zephyr/dt-bindings/clock/allwinner,sun8i-v3s-ccu.h>
 #include <zephyr/logging/log.h>
 
@@ -90,6 +91,7 @@ struct sun8i_ccu_data {
 }
 
 static int _sun8i_set_clk_cpu(const struct device *dev, const struct sun8i_clock_info *info, void *data);
+static int _sun8i_set_clk_spi0(const struct device *dev, const struct sun8i_clock_info *info, void *data);
 
 static const struct sun8i_clock_info sun8i_v3s_clock_info[] = {
 	CLK_PROP(CLK_CPU, 0, _sun8i_set_clk_cpu),
@@ -97,7 +99,7 @@ static const struct sun8i_clock_info sun8i_v3s_clock_info[] = {
 	CLK_PROP(CLK_MMC1, 0x8c, 0),
 	CLK_PROP(CLK_MMC2, 0x90, 0),
 	CLK_PROP(CLK_CE, 0x9c, 0),
-	CLK_PROP(CLK_SPI0, 0xa0, 0),
+	CLK_PROP(CLK_SPI0, 0xa0, _sun8i_set_clk_spi0),
 	CLK_PROP(CLK_USB_PHY0, 0xcc, 0),
 };
 
@@ -322,6 +324,97 @@ static int _sun8i_set_clk_cpu(const struct device *dev, const struct sun8i_clock
 	if (freq)
 		return sun8i_ccu_set_cpu_clock(dev, freq);
 	return -EINVAL;
+}
+
+/*
+ * SPI0_CLK register (CCU offset 0xA0):
+ *   bit 31:      Gating (1 = clock enabled)
+ *   bits 26:24:  Clock source (000=HOSC, 001=PLL_PERIPH0, 010=PLL_PERIPH1)
+ *   bits 17:16:  Pre-divider M (00=/1, 01=/2, 10=/4, 11=/8)
+ *   bits 1:0:    Divider N (00=/1, 01=/2, 10=/4, 11=/8)
+ *   f_out = f_parent / (2^M * 2^N)
+ *
+ * The SPI driver passes a struct sun8i_spi_clk_config with the parent
+ * clock frequency and the desired output frequency.
+ */
+
+#define SPI0_CLK_SRC_SHIFT	24
+#define SPI0_CLK_SRC_MASK	GENMASK(26, 24)
+#define SPI0_CLK_SRC_HOSC	0
+#define SPI0_CLK_M_SHIFT	16
+#define SPI0_CLK_M_MASK		GENMASK(17, 16)
+#define SPI0_CLK_N_SHIFT	0
+#define SPI0_CLK_N_MASK		GENMASK(1, 0)
+#define SPI0_CLK_GATE		BIT(31)
+#define SPI0_CLK_PLL_BYPASS	BIT(30)  /* Bypass PLL lock when using OSC24M */
+
+static int _sun8i_set_clk_spi0(const struct device *dev,
+				const struct sun8i_clock_info *info, void *data)
+{
+	const struct sun8i_ccu_config *ccu_cfg = dev->config;
+	const struct sun8i_spi_clk_config *clk_cfg = data;
+	uint32_t parent_freq;
+	uint32_t target_freq = clk_cfg->output_freq;
+
+	switch (clk_cfg->src) {
+	case SUN8I_SPI_CLK_SRC_HOSC:
+		parent_freq = 24000000;
+		break;
+	case SUN8I_SPI_CLK_SRC_PLL_PERIPH0:
+	case SUN8I_SPI_CLK_SRC_PLL_PERIPH1:
+		parent_freq = 600000000;
+		break;
+	default:
+		return -EINVAL;
+	}
+	uint32_t best_m = 0, best_n = 0;
+	uint32_t best_diff = UINT32_MAX;
+	uint32_t best_actual = 0;
+	uint32_t reg;
+
+	if (target_freq == 0 || parent_freq == 0) {
+		return -EINVAL;
+	}
+
+	/* Try all M (0..3) and N (0..3) divider combinations */
+	for (int m = 0; m <= 3; m++) {
+		for (int n = 0; n <= 3; n++) {
+			uint32_t div = (1U << m) * (1U << n);
+			uint32_t actual = parent_freq / div;
+
+			if (actual == 0) {
+				continue;
+			}
+
+			uint32_t diff = (actual > target_freq) ?
+				(actual - target_freq) :
+				(target_freq - actual);
+
+			if (diff < best_diff) {
+				best_diff = diff;
+				best_actual = actual;
+				best_m = m;
+				best_n = n;
+			}
+		}
+	}
+
+	if (best_actual == 0) {
+		return -EINVAL;
+	}
+
+	/* Build register: source=HOSC, dividers, enable gate */
+	reg = (SPI0_CLK_SRC_HOSC << SPI0_CLK_SRC_SHIFT) |
+	      (best_m << SPI0_CLK_M_SHIFT) |
+	      (best_n << SPI0_CLK_N_SHIFT) |
+	      SPI0_CLK_GATE;
+
+	LOG_DBG("SPI0 clk: base=0x%lx offset=0x%lx addr=0x%lx val=0x%08x",
+		(unsigned long)ccu_cfg->base, (unsigned long)info->offset,
+		(unsigned long)(ccu_cfg->base + info->offset), reg);
+	sys_write32(reg, ccu_cfg->base + info->offset);
+
+	return 0;
 }
 
 static int sun8i_set_clk_cpu(const struct device *dev,

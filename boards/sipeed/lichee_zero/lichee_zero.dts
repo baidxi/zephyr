@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 juno <baidxi404629@gmail.com>
+ * Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -53,6 +53,16 @@
 
 &pinctrl {
 	status = "okay";
+
+	default_state {
+		/* SPI0 pinmux on PC0-PC3 */
+		spi0_pins: spi0-pins {
+			pinmux = <SUN8I_V3S_PINMUX(PORT_C, 0, FUNC_PC_SPI0)>,
+				 <SUN8I_V3S_PINMUX(PORT_C, 1, FUNC_PC_SPI0)>,
+				 <SUN8I_V3S_PINMUX(PORT_C, 2, FUNC_PC_SPI0)>,
+				 <SUN8I_V3S_PINMUX(PORT_C, 3, FUNC_PC_SPI0)>;
+		};
+	};
 };
 
 &gpiob {
@@ -60,5 +70,12 @@
 };
 
 &gpiog {
+	status = "okay";
+};
+
+&spi0 {
+	pinctrl-0 = <&spi0_pins>;
+	pinctrl-names = "default";
+	clock-source = <&osc24M>;
 	status = "okay";
 };

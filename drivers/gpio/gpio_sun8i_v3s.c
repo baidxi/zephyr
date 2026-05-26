@@ -1,6 +1,12 @@
+/*
+ * Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/sys/sys_io.h>
 #include <soc.h>
 #include <sys/errno.h>
 #include <zephyr/drivers/gpio.h>
@@ -147,7 +153,7 @@ static int sun8i_gpio_pin_interrupt_configure(const struct device *port, gpio_pi
   uint8_t cfg_offset = pin / 8;
   uint8_t pin_offset = pin > 8 ? pin % 8 : pin;
   uint32_t value;
-  uint8_t cfg;
+  uint8_t cfg = 0;
 
   if (!config->is_intc)
     return -EOPNOTSUPP;

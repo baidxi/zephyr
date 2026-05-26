@@ -1,0 +1,19 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config SPI_SUN8I_V3S
+	bool "Allwinner sun8i V3s SPI driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_SPI_ENABLED
+	help
+	  Enable Allwinner sun8i V3s SPI driver.
+
+config SPI_SUN8I_V3S_INTERRUPT
+	bool "Use interrupt-driven transfer mode"
+	default y
+	depends on SPI_SUN8I_V3S
+	help
+	  Use interrupt-driven SPI transfers instead of polling.
+	  When enabled, the driver uses TC (Transfer Complete) interrupts
+	  to progress through multi-batch transfers, allowing the CPU to
+	  sleep between batches. When disabled, busy-wait polling is used.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025
+ * Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -40,6 +40,10 @@
 
 /* Function select values (verify with V3s datasheet RM0440) */
 #define FUNC_GPIO	0
+
+/* Port C functions */
+#define FUNC_PC_SDC2	2	/* PC0=CLK, PC1=CMD, PC2=RST, PC3=D0 */
+#define FUNC_PC_SPI0	3	/* PC0=MISO, PC1=CLK, PC2=CS, PC3=MOSI */
 
 /* Port F functions */
 #define FUNC_PF_UART0	2	/* PF2=TX, PF4=RX */

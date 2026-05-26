@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 juno <baidxi404629@gmail.com>
+ * Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,6 +19,7 @@ static const struct arm_mmu_region mmu_regions[] = {
 	MMU_REGION_FLAT_ENTRY("ccu", 0x01c20000, 0x1000, MT_DEVICE | MPERM_R | MPERM_W),
 	MMU_REGION_FLAT_ENTRY("pio", 0x01c20800, 0x1000,  MT_DEVICE | MPERM_R | MPERM_W),
 	MMU_REGION_FLAT_ENTRY("timer", 0x01c20c00, 0x1000, MT_DEVICE | MPERM_R | MPERM_W),
+	MMU_REGION_FLAT_ENTRY("spi0", 0x01c68000, 0x1000, MT_DEVICE | MPERM_R | MPERM_W),
 };
 
 const struct arm_mmu_config mmu_config = {
