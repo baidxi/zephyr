@@ -323,13 +323,16 @@ DEVICE_API(gpio, sun8i_v3s_gpio_driver) = {
 
 #define SUN8I_GPIO_DEVICE_INIT(n) \
   static struct sun8i_gpio_data gpio##n##_data; \
-  static void sun8i_gpio_irq_config_##n(const struct device *dev) \
-  { \
-    IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority),  \
-    sun8i_gpio_isr, \
-    DEVICE_DT_GET(DT_DRV_INST(n)), 0);  \
-    irq_enable(DT_INST_IRQN(n));  \
-  };  \
+  COND_CODE_1(DT_INST_IRQ_HAS_IDX(n, 0), \
+    (static void sun8i_gpio_irq_config_##n(const struct device *dev) \
+    { \
+      IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), \
+      sun8i_gpio_isr, \
+      DEVICE_DT_GET(DT_DRV_INST(n)), 0); \
+      irq_enable(DT_INST_IRQN(n)); \
+    }), \
+    (static void sun8i_gpio_irq_config_##n(const struct device *dev) { ARG_UNUSED(dev); }) \
+  ) \
   static const struct sun8i_gpio_config gpio##n##_config = {  \
     .common = { 0xffffffff }, \
     .port_id = DT_REG_ADDR(DT_DRV_INST(n)), \
