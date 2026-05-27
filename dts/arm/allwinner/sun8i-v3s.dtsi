@@ -12,6 +12,7 @@
 #include <zephyr/dt-bindings/clock/allwinner,sun8i-v3s-ccu.h>
 #include <zephyr/dt-bindings/reset/allwinner,sun8i-v3s-ccu.h>
 #include <zephyr/dt-bindings/counter/sun8i-v3s-counter.h>
+#include <zephyr/dt-bindings/dma/allwinner,sun8i-v3s-dma.h>
 
 / {
 	interrupt-parent = <&gic>;
@@ -198,7 +199,20 @@
 			};
 		};
 
-		timer0: timer@1c20c00 {
+		dma: dma-controller@1c02000 {
+				compatible = "allwinner,sun8i-v3s-dma";
+				reg = <0x01c02000 0x1000>;
+				interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL
+					      IRQ_DEFAULT_PRIORITY>;
+				clocks = <&ccu CLK_BUS_DMA>;
+				resets = <&reset RST_BUS_DMA>;
+				#dma-cells = <1>;
+				dma-channels = <8>;
+				dma-requests = <24>;
+				status = "okay";
+			};
+
+			timer0: timer@1c20c00 {
 			compatible = "allwinner,sun8i-v3s-timer";
 			reg = <0x01c20c00 0xdc>;
 			clocks = <&osc24M>;

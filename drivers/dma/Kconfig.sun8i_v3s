@@ -1,0 +1,32 @@
+# Allwinner sun8i V3s DMA configuration options
+
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config DMA_SUN8I_V3S
+	bool "Allwinner sun8i V3s DMA driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_DMA_ENABLED
+	select CACHE_MANAGEMENT
+	select DCACHE
+	help
+	  DMA driver for Allwinner sun8i V3s SoC. Supports 8 physical
+	  channels with linked-list descriptor chaining.
+
+if DMA_SUN8I_V3S
+
+config DMA_SUN8I_V3S_VCHAN_COUNT
+	int "Number of virtual DMA channels"
+	default 24
+	help
+	  Virtual channels allow peripheral drivers to queue DMA
+	  requests even when all physical channels are busy.
+
+config DMA_SUN8I_V3S_LLI_POOL_SIZE
+	int "Maximum descriptors per channel"
+	default 64
+	help
+	  Maximum number of chained descriptors (dma_block_config)
+	  per transfer. Each descriptor occupies 24 bytes.
+
+endif # DMA_SUN8I_V3S

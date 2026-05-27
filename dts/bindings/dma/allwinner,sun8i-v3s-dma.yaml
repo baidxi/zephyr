@@ -1,0 +1,39 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner sun8i V3s DMA controller.
+  The DMA controller has 8 physical channels and supports
+  linked-list descriptor chaining.
+
+  DMA clients must use a single-cell specifier giving the
+  DRQ port number:
+    spi0 {
+      dmas = <&dma 23>, <&dma 23>;
+      dma-names = "rx", "tx";
+    };
+
+compatible: "allwinner,sun8i-v3s-dma"
+
+include: dma-controller.yaml
+
+properties:
+  "#dma-cells":
+    const: 1
+
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+    type: phandle-array
+
+  resets:
+    required: true
+    type: phandle-array
+
+dma-cells:
+  - request
