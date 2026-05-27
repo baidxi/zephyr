@@ -9,11 +9,24 @@ config SPI_SUN8I_V3S
 	  Enable Allwinner sun8i V3s SPI driver.
 
 config SPI_SUN8I_V3S_INTERRUPT
-	bool "Use interrupt-driven transfer mode"
+	bool "Enable interrupt-driven transfer support"
 	default y
 	depends on SPI_SUN8I_V3S
 	help
-	  Use interrupt-driven SPI transfers instead of polling.
+	  Enable interrupt-driven SPI transfers instead of polling.
 	  When enabled, the driver uses TC (Transfer Complete) interrupts
 	  to progress through multi-batch transfers, allowing the CPU to
 	  sleep between batches. When disabled, busy-wait polling is used.
+
+config SPI_SUN8I_V3S_DMA
+	bool "Enable DMA-driven transfer support"
+	default y
+	depends on SPI_SUN8I_V3S
+	depends on DMA_SUN8I_V3S
+	help
+	  Enable DMA for SPI transfers instead of PIO. When enabled, the
+	  driver configures DMA channels for TX (MEMORY_TO_PERIPHERAL)
+	  and RX (PERIPHERAL_TO_MEMORY) using the SPI0 DRQ port 23.
+	  DMA mode eliminates CPU polling/interrupt overhead for large
+	  transfers. Falls back to PIO mode for small transfers below
+	  the DMA threshold.

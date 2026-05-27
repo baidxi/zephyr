@@ -265,6 +265,8 @@
 			clock-names = "bus", "mod";
 			resets = <&reset RST_BUS_SPI0>;
 			clock-frequency = <DT_FREQ_M(24)>;
+			dmas = <&dma 23>, <&dma 23>;
+			dma-names = "tx", "rx";
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";

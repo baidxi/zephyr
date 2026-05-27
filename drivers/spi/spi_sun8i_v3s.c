@@ -25,6 +25,7 @@
 LOG_MODULE_REGISTER(spi_sun8i_v3s);
 
 #include <zephyr/drivers/clock_control_sun8i_v3s.h>
+#include <zephyr/drivers/dma.h>
 #include "spi_context.h"
 
 /*
@@ -58,7 +59,7 @@ LOG_MODULE_REGISTER(spi_sun8i_v3s);
 #define SPI_TCR_SS_SEL(x)	(((x) & 0x3) << SPI_TCR_SS_SEL_SHIFT)
 #define SPI_TCR_SS_OWNER	BIT(6)   /* SS_OWNER: 0=controller, 1=software */
 #define SPI_TCR_SS_LEVEL	BIT(7)   /* SS_LEVEL: manual CS level (when SS_OWNER=1) */
-#define SPI_TCR_DDB		BIT(8)
+#define SPI_TCR_DDB		BIT(8)   /* DMA burst mode (Linux: DHB) */
 #define SPI_TCR_DHB		BIT(9)
 #define SPI_TCR_SDM		BIT(13)  /* Normal Sample Mode */
 #define SPI_TCR_XCH		BIT(31)  /* Exchange burst trigger (auto-clear) */
@@ -81,6 +82,8 @@ LOG_MODULE_REGISTER(spi_sun8i_v3s);
 /* FCR bits (§8.2.5.5, default 0x00400001) */
 #define SPI_FCR_RF_RST		BIT(15)
 #define SPI_FCR_TF_RST		BIT(31)
+#define SPI_FCR_RF_DRQ_EN	BIT(8)    /* RX FIFO DMA request enable */
+#define SPI_FCR_TF_DRQ_EN	BIT(24)   /* TX FIFO DMA request enable */
 #define SPI_FCR_RX_TRIG_MASK	0xFF
 #define SPI_FCR_TX_TRIG_SHIFT	16
 #define SPI_FCR_TX_TRIG(x)	(((x) & 0xFF) << SPI_FCR_TX_TRIG_SHIFT)
@@ -116,6 +119,20 @@ static uint32_t fifo_read8(mm_reg_t addr)   { return sys_read8(addr); }
 static uint32_t fifo_read16(mm_reg_t addr)  { return sys_read16(addr); }
 static uint32_t fifo_read32(mm_reg_t addr)  { return sys_read32(addr); }
 
+#ifdef CONFIG_SPI_SUN8I_V3S_DMA
+enum spi_sun8i_v3s_dma_dir {
+	V3S_DMA_TX = 0,
+	V3S_DMA_RX,
+	V3S_DMA_NUM
+};
+
+struct spi_sun8i_v3s_dma_data {
+	struct dma_config cfg;
+	struct dma_block_config blk;
+	uint32_t channel;
+};
+#endif
+
 struct spi_sun8i_v3s_data {
 	struct spi_context ctx;
 	mm_reg_t base;
@@ -125,6 +142,12 @@ struct spi_sun8i_v3s_data {
 #ifdef CONFIG_SPI_SUN8I_V3S_INTERRUPT
 	uint32_t total;		/* remaining bytes for interrupt-driven transfer */
 	const struct spi_config *current_config; /* config for CS deassert in ISR */
+#endif
+#ifdef CONFIG_SPI_SUN8I_V3S_DMA
+	struct spi_sun8i_v3s_dma_data dma[V3S_DMA_NUM];
+	struct k_sem dma_sem;
+	int dma_status;
+	uint8_t dma_pending;
 #endif
 };
 
@@ -141,6 +164,10 @@ struct spi_sun8i_v3s_config {
 	enum sun8i_spi_clk_src clk_src;
 	bool gpio_cs;			/* true if gpio-cs property present */
 	uint8_t data_width;		/* 8, 16, or 32 (from DT allwinner,data-width) */
+#ifdef CONFIG_SPI_SUN8I_V3S_DMA
+	const struct device *dma_dev;
+	uint8_t dma_drq_port;
+#endif
 };
 
 /* Control register access (always 32-bit) */
@@ -218,12 +245,6 @@ static int spi_calc_divider(uint32_t src_freq, uint32_t req_freq,
 
 /*
  * Fill TX FIFO with 'count' bytes using variable-width access.
- *
- * Wide access: pack 'bytes_per_access' bytes into one word, write via
- * data->fifo_write. Remainder bytes fall back to sys_write8.
- *
- * When TX buffer is exhausted (spi_context_tx_buf_on returns false),
- * dummy 0x00 bytes are written to keep the clock running for RX.
  */
 static void spi_fill_tx_fifo(struct spi_sun8i_v3s_data *data,
 			      struct spi_context *ctx, uint32_t count)
@@ -231,7 +252,6 @@ static void spi_fill_tx_fifo(struct spi_sun8i_v3s_data *data,
 	uint32_t bpa = data->bytes_per_access;
 	uint32_t aligned = count / bpa;
 
-	/* Wide access portion */
 	for (uint32_t i = 0; i < aligned; i++) {
 		uint32_t val = 0;
 		for (int j = 0; j < bpa; j++) {
@@ -243,7 +263,6 @@ static void spi_fill_tx_fifo(struct spi_sun8i_v3s_data *data,
 		data->fifo_write(data->base + SPI_TXD, val);
 	}
 
-	/* Remainder bytes: fallback to byte access */
 	uint32_t remainder = count % bpa;
 	for (uint32_t i = 0; i < remainder; i++) {
 		uint8_t byte = spi_context_tx_buf_on(ctx)
@@ -255,11 +274,6 @@ static void spi_fill_tx_fifo(struct spi_sun8i_v3s_data *data,
 
 /*
  * Drain RX FIFO for 'count' bytes using variable-width access.
- *
- * Wide access: read one word via data->fifo_read, unpack into
- * 'bytes_per_access' bytes. Remainder bytes fall back to sys_read8.
- *
- * When RX buffer is exhausted, bytes are discarded.
  */
 static void spi_drain_rx_fifo(struct spi_sun8i_v3s_data *data,
 			       struct spi_context *ctx, uint32_t count)
@@ -267,7 +281,6 @@ static void spi_drain_rx_fifo(struct spi_sun8i_v3s_data *data,
 	uint32_t bpa = data->bytes_per_access;
 	uint32_t aligned = count / bpa;
 
-	/* Wide access portion */
 	for (uint32_t i = 0; i < aligned; i++) {
 		uint32_t val = data->fifo_read(data->base + SPI_RXD);
 		for (int j = 0; j < bpa; j++) {
@@ -279,7 +292,6 @@ static void spi_drain_rx_fifo(struct spi_sun8i_v3s_data *data,
 		}
 	}
 
-	/* Remainder bytes: fallback to byte access */
 	uint32_t remainder = count % bpa;
 	for (uint32_t i = 0; i < remainder; i++) {
 		uint8_t byte = sys_read8(data->base + SPI_RXD);
@@ -293,10 +305,6 @@ static void spi_drain_rx_fifo(struct spi_sun8i_v3s_data *data,
 /*
  * Start a single batch: set MBC/MTC/BCC, fill TX FIFO, trigger XCH.
  * Used by both polling and interrupt-driven paths.
- *
- * BCC.STC must equal the burst count; otherwise the V3s controller
- * produces only half the expected SPI clock cycles per byte.
- * (Confirmed by U-Boot spi-sunxi.c: sun8i variants write BCTL = nbytes.)
  */
 static void v3s_spi_start_batch(struct spi_sun8i_v3s_data *data,
 				 struct spi_context *ctx, uint32_t chunk)
@@ -316,7 +324,7 @@ static void v3s_spi_start_batch(struct spi_sun8i_v3s_data *data,
 }
 
 /*
- * CS deassert helper (shared by ISR and transceive error path).
+ * CS deassert helper.
  */
 static void v3s_spi_cs_deassert(struct spi_sun8i_v3s_data *data,
 				 struct spi_context *ctx,
@@ -335,13 +343,100 @@ static void v3s_spi_cs_deassert(struct spi_sun8i_v3s_data *data,
 	}
 }
 
+#ifdef CONFIG_SPI_SUN8I_V3S_DMA
+
+static void spi_sun8i_v3s_dma_callback(const struct device *dma_dev, void *arg,
+				       uint32_t channel, int status)
+{
+	const struct device *dev = (const struct device *)arg;
+	struct spi_sun8i_v3s_data *data = dev->data;
+
+	if (status < 0) {
+		data->dma_status = status;
+	}
+	k_sem_give(&data->dma_sem);
+}
+
+static int spi_sun8i_v3s_dma_setup(const struct device *dev, int dir,
+				    const uint8_t *buf, uint32_t *dummy,
+				    uint32_t dma_blk_size)
+{
+	const struct spi_sun8i_v3s_config *cfg = dev->config;
+	struct spi_sun8i_v3s_data *data = dev->data;
+	struct spi_sun8i_v3s_dma_data *dma = &data->dma[dir];
+	bool is_tx = (dir == V3S_DMA_TX);
+	int ret;
+
+	memset(&dma->cfg, 0, sizeof(dma->cfg));
+	memset(&dma->blk, 0, sizeof(dma->blk));
+
+	dma->cfg.channel_direction = is_tx ? MEMORY_TO_PERIPHERAL
+					    : PERIPHERAL_TO_MEMORY;
+	dma->cfg.dma_slot = cfg->dma_drq_port;
+	/*
+	 * TXD accepts 32-bit writes when using DMA (per Linux sun6i_spi).
+	 * RXD is read as 8-bit as the FIFO returns one byte per access.
+	 */
+	if (is_tx) {
+		dma->cfg.source_data_size = data->bytes_per_access;
+		dma->cfg.dest_data_size = 4;   /* 32-bit writes to TXD */
+	} else {
+		dma->cfg.source_data_size = 1; /* 8-bit reads from RXD */
+		dma->cfg.dest_data_size = data->bytes_per_access;
+	}
+	dma->cfg.source_burst_length = 8;
+	dma->cfg.dest_burst_length = 8;
+	dma->cfg.block_count = 1;
+	dma->cfg.head_block = &dma->blk;
+	dma->cfg.dma_callback = spi_sun8i_v3s_dma_callback;
+	dma->cfg.user_data = (void *)dev;
+
+	dma->blk.block_size = dma_blk_size;
+
+	if (is_tx) {
+		dma->blk.dest_address = cfg->phys_base + SPI_TXD;
+		dma->blk.dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+		if (buf) {
+			dma->blk.source_address = (uint32_t)(uintptr_t)buf;
+			dma->blk.source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
+		} else {
+			dma->blk.source_address = (uint32_t)(uintptr_t)dummy;
+			dma->blk.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+		}
+	} else {
+		dma->blk.source_address = cfg->phys_base + SPI_RXD;
+		dma->blk.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+		if (buf) {
+			dma->blk.dest_address = (uint32_t)(uintptr_t)buf;
+			dma->blk.dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
+		} else {
+			dma->blk.dest_address = (uint32_t)(uintptr_t)dummy;
+			dma->blk.dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
+		}
+	}
+
+	ret = dma_config(cfg->dma_dev, dma->channel, &dma->cfg);
+	if (ret < 0) {
+		LOG_ERR("dma_config %s failed %d", is_tx ? "tx" : "rx", ret);
+		return ret;
+	}
+
+	ret = dma_start(cfg->dma_dev, dma->channel);
+	if (ret < 0) {
+		LOG_ERR("dma_start %s failed %d", is_tx ? "tx" : "rx", ret);
+		return ret;
+	}
+
+	return 0;
+}
+#endif /* CONFIG_SPI_SUN8I_V3S_DMA */
+
 static void spi_sun8i_v3s_isr(const struct device *dev)
 {
 	struct spi_sun8i_v3s_data *data = dev->data;
 	struct spi_context *ctx = &data->ctx;
 	uint32_t isr = v3s_spi_rd(data, SPI_ISR);
 
-	/* Clear all pending interrupt flags (W1C) */
 	v3s_spi_wr(data, SPI_ISR, isr);
 
 	if (isr & (SPI_ISR_TF_OVF | SPI_ISR_RF_OVF)) {
@@ -352,23 +447,18 @@ static void spi_sun8i_v3s_isr(const struct device *dev)
 
 #ifdef CONFIG_SPI_SUN8I_V3S_INTERRUPT
 	if (isr & SPI_ISR_TC) {
-		/* Current batch complete: drain RX */
 		uint32_t chunk = (data->total > SPI_FIFO_DEPTH)
 				 ? SPI_FIFO_DEPTH : data->total;
-
-		/* Drain RX FIFO for the completed batch (FSR-based count) */
 		uint32_t rx_count = v3s_spi_rd(data, SPI_FSR) & SPI_FSR_RF_CNT_MASK;
 		spi_drain_rx_fifo(data, ctx, rx_count);
 
 		data->total -= chunk;
 
 		if (data->total > 0) {
-			/* Start next batch */
 			uint32_t next = (data->total > SPI_FIFO_DEPTH)
 					? SPI_FIFO_DEPTH : data->total;
 			v3s_spi_start_batch(data, ctx, next);
 		} else {
-			/* All batches done: deassert CS, complete */
 			v3s_spi_wr(data, SPI_IER, 0);
 			v3s_spi_cs_deassert(data, ctx, data->current_config);
 			spi_context_complete(ctx, dev, 0);
@@ -396,7 +486,6 @@ static void spi_sun8i_v3s_isr(const struct device *dev)
 
 /*
  * Configure SPI hardware. Called only when ctx->config != config
- * (fast path check is inlined in transceive).
  */
 static int spi_sun8i_v3s_configure(const struct device *dev,
 				   const struct spi_config *config)
@@ -412,12 +501,10 @@ static int spi_sun8i_v3s_configure(const struct device *dev,
 		return -ENOTSUP;
 	}
 
-	/* Build TCR: preserve SDM | SS_OWNER, clear mode/CS bits */
 	uint32_t tcr = v3s_spi_rd(data, SPI_TCR);
 	tcr &= ~(SPI_TCR_CPHA | SPI_TCR_CPOL | SPI_TCR_SPOL |
 		 SPI_TCR_SS_LEVEL | SPI_TCR_SS_SEL_MASK);
 
-	/* CPOL/CPHA from Zephyr SPI mode */
 	if (SPI_MODE_GET(config->operation) & SPI_MODE_CPOL) {
 		tcr |= SPI_TCR_CPOL;
 	}
@@ -425,21 +512,18 @@ static int spi_sun8i_v3s_configure(const struct device *dev,
 		tcr |= SPI_TCR_CPHA;
 	}
 
-	/* SPOL: default active-low (SPOL=1). Set SPOL=0 for active-high. */
 	if (config->operation & SPI_CS_ACTIVE_HIGH) {
-		tcr &= ~SPI_TCR_SPOL;  /* SPOL=0: active high */
+		tcr &= ~SPI_TCR_SPOL;
 	} else {
-		tcr |= SPI_TCR_SPOL;   /* SPOL=1: active low (default) */
+		tcr |= SPI_TCR_SPOL;
 	}
 
-	/* CS selection: hardware SS pin or GPIO */
 	if (!cfg->gpio_cs && !spi_cs_is_gpio(config)) {
 		tcr |= SPI_TCR_SS_SEL(config->slave);
 	}
 
 	v3s_spi_wr(data, SPI_TCR, tcr);
 
-	/* Clock divider */
 	uint32_t ccr_val;
 	int ret = spi_calc_divider(cfg->clock_frequency,
 				   config->frequency, &ccr_val);
@@ -448,7 +532,6 @@ static int spi_sun8i_v3s_configure(const struct device *dev,
 	}
 	v3s_spi_wr(data, SPI_CCR, ccr_val);
 
-	/* FIFO trigger levels */
 	v3s_spi_wr(data, SPI_FCR,
 		   SPI_FCR_TX_TRIG(SPI_FIFO_TRIG_LEVEL) |
 		   (SPI_FIFO_TRIG_LEVEL & SPI_FCR_RX_TRIG_MASK));
@@ -462,13 +545,13 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 				    const struct spi_buf_set *tx_bufs,
 				    const struct spi_buf_set *rx_bufs)
 {
+	const struct spi_sun8i_v3s_config *cfg = dev->config;
 	struct spi_sun8i_v3s_data *data = dev->data;
 	struct spi_context *ctx = &data->ctx;
 	int ret = 0;
 
 	spi_context_lock(ctx, false, NULL, NULL, config);
 
-	/* Fast path: skip configure when the same config pointer is reused */
 	if (ctx->config != config) {
 		ret = spi_sun8i_v3s_configure(dev, config);
 		if (ret) {
@@ -476,9 +559,8 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 		}
 	}
 
-	spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, 1);  /* dfs=1 */
+	spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, 1);
 
-	/* Total transfer = MAX(tx, rx), already computed in ctx->max_count */
 	uint32_t total = (uint32_t)ctx->max_count;
 	LOG_DBG("transceive: total=%u freq=%u", total, config->frequency);
 	if (total == 0) {
@@ -486,59 +568,137 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 		goto out_release;
 	}
 
-	/* Assert CS (held across all chunks) */
+	/* Assert CS */
 	if (spi_cs_is_gpio(config)) {
 		spi_context_cs_control(ctx, true);
 	} else {
-		/* Hardware SS pin, software control: assert based on SPOL */
 		uint32_t tcr = v3s_spi_rd(data, SPI_TCR);
 		if (tcr & SPI_TCR_SPOL) {
-			tcr &= ~SPI_TCR_SS_LEVEL;  /* SPOL=1: active low → assert=low */
+			tcr &= ~SPI_TCR_SS_LEVEL;
 		} else {
-			tcr |= SPI_TCR_SS_LEVEL;   /* SPOL=0: active high → assert=high */
+			tcr |= SPI_TCR_SS_LEVEL;
 		}
 		v3s_spi_wr(data, SPI_TCR, tcr);
 	}
 
-	/* Reset FIFOs once (not needed between chunks) */
+	/* Reset FIFOs */
 	v3s_spi_wr(data, SPI_FCR,
 		   v3s_spi_rd(data, SPI_FCR) | SPI_FCR_RF_RST | SPI_FCR_TF_RST);
 
+#ifdef CONFIG_SPI_SUN8I_V3S_DMA
+	if (cfg->dma_dev != NULL) {
+		static uint32_t dma_dummy_tx, dma_dummy_rx;
+		bool has_rx = spi_context_rx_buf_on(ctx);
+
+		data->dma_pending = 1; /* TX always needed */
+		data->dma_status = 0;
+		k_sem_reset(&data->dma_sem);
+
+		/* Setup TX DMA (always needed to clock out data) */
+		ret = spi_sun8i_v3s_dma_setup(dev, V3S_DMA_TX,
+		    spi_context_tx_buf_on(ctx) ? ctx->tx_buf : NULL,
+		    &dma_dummy_tx, total);
+		if (ret) {
+			goto dma_cleanup;
+		}
+
+		/* Setup RX DMA only when caller wants received data */
+		if (has_rx) {
+			ret = spi_sun8i_v3s_dma_setup(dev, V3S_DMA_RX,
+			    ctx->rx_buf, &dma_dummy_rx, total);
+			if (ret) {
+				goto dma_cleanup;
+			}
+			data->dma_pending++;
+		}
+
+		/*
+		 * FCR: DMA trigger level = FIFO_DEPTH/2, with DRQ_EN bits.
+		 */
+		uint32_t trig = SPI_FIFO_DEPTH / 2;
+		uint32_t fcr = SPI_FCR_TF_DRQ_EN |
+			       ((trig & SPI_FCR_RX_TRIG_MASK) << SPI_FCR_TX_TRIG_SHIFT) |
+			       (trig & SPI_FCR_RX_TRIG_MASK);
+		if (has_rx) {
+			fcr |= SPI_FCR_RF_DRQ_EN;
+		}
+		v3s_spi_wr(data, SPI_FCR, fcr);
+
+		/* Burst counters for full transfer */
+		v3s_spi_wr(data, SPI_MBC, total);
+		v3s_spi_wr(data, SPI_MTC, total);
+		v3s_spi_wr(data, SPI_BCC, total);
+
+		/* Enable DMA burst mode */
+		v3s_spi_wr(data, SPI_TCR,
+			   v3s_spi_rd(data, SPI_TCR) | SPI_TCR_DDB);
+
+		LOG_DBG("DMA xfer: total=%u tx_drq=1 rx_drq=%d",
+			total, has_rx);
+
+		/* Trigger transfer */
+		v3s_spi_wr(data, SPI_TCR,
+			   v3s_spi_rd(data, SPI_TCR) | SPI_TCR_XCH);
+
+		/* Wait for DMA channels */
+		for (int i = 0; i < data->dma_pending; i++) {
+			ret = k_sem_take(&data->dma_sem, K_MSEC(5000));
+			if (ret < 0) {
+				LOG_ERR("DMA timeout");
+				data->dma_status = -ETIMEDOUT;
+				data->dma_pending = 0;
+			}
+		}
+
+		if (data->dma_status < 0) {
+			ret = data->dma_status;
+			goto dma_cleanup;
+		}
+
+		spi_context_update_tx(ctx, 1, total);
+		spi_context_update_rx(ctx, 1, total);
+
+		spi_context_complete(ctx, dev, 0);
+		ret = spi_context_wait_for_completion(ctx);
+		goto cs_deassert;
+
+	dma_cleanup:
+		dma_stop(cfg->dma_dev,
+			 data->dma[V3S_DMA_TX].channel);
+		if (has_rx) {
+			dma_stop(cfg->dma_dev,
+				 data->dma[V3S_DMA_RX].channel);
+		}
+		LOG_ERR("DMA transfer failed (err %d)", ret);
+		goto cs_deassert;
+	}
+#endif
+
 #ifdef CONFIG_SPI_SUN8I_V3S_INTERRUPT
-	/* Interrupt-driven multi-batch transfer */
 	data->total = total;
 	data->current_config = config;
 
 	uint32_t first = (total > SPI_FIFO_DEPTH) ? SPI_FIFO_DEPTH : total;
 	v3s_spi_start_batch(data, ctx, first);
-
-	/* Enable Transfer Complete interrupt; ISR handles remaining batches */
 	v3s_spi_wr(data, SPI_IER, SPI_IER_TC_INT_EN);
 
 	ret = spi_context_wait_for_completion(ctx);
 	if (ret) {
-		/* ISR reported error or timeout: deassert CS manually */
 		v3s_spi_cs_deassert(data, ctx, config);
 	}
-	/* else: ISR already deasserted CS on success */
+	goto cs_deassert_done;
 #else
-	/* Polling batched transfer loop */
 	while (total > 0) {
 		uint32_t chunk = (total > SPI_FIFO_DEPTH)
 				 ? SPI_FIFO_DEPTH : total;
 
-		/* ①② Write burst counters */
 		v3s_spi_wr(data, SPI_MBC, chunk);
 		v3s_spi_wr(data, SPI_MTC, chunk);
-
-		/* ③ Fill TX FIFO (TX exhausted → dummy 0x00) */
 		spi_fill_tx_fifo(data, ctx, chunk);
 
-		/* ④ Trigger transfer */
 		v3s_spi_wr(data, SPI_TCR,
 			   v3s_spi_rd(data, SPI_TCR) | SPI_TCR_XCH);
 
-		/* ⑤ Poll XCH auto-clear */
 		uint32_t timeout = 100000;
 		while (timeout-- && (v3s_spi_rd(data, SPI_TCR) & SPI_TCR_XCH)) {
 			;
@@ -552,18 +712,18 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 			goto cs_deassert;
 		}
 
-		/* ⑥ Drain RX FIFO */
 		spi_drain_rx_fifo(data, ctx, chunk);
-
 		total -= chunk;
 	}
 
 	spi_context_complete(ctx, dev, 0);
 	ret = spi_context_wait_for_completion(ctx);
+	goto cs_deassert;
+#endif
 
 cs_deassert:
 	v3s_spi_cs_deassert(data, ctx, config);
-#endif
+cs_deassert_done:
 
 out_release:
 	spi_context_release(ctx, ret);
@@ -585,7 +745,6 @@ static int spi_sun8i_v3s_release(const struct device *dev,
 				 const struct spi_config *config)
 {
 	struct spi_sun8i_v3s_data *data = dev->data;
-
 	spi_context_unlock_unconditionally(&data->ctx);
 	return 0;
 }
@@ -604,7 +763,6 @@ static int spi_sun8i_v3s_init(const struct device *dev)
 	struct spi_sun8i_v3s_data *data = dev->data;
 	int ret;
 
-	/* 1. Pin control */
 #if defined(CONFIG_PINCTRL)
 	if (cfg->pincfg != NULL) {
 		ret = pinctrl_apply_state(cfg->pincfg, PINCTRL_STATE_DEFAULT);
@@ -615,11 +773,9 @@ static int spi_sun8i_v3s_init(const struct device *dev)
 	}
 #endif
 
-	/* 2. Map register address */
 	device_map(&data->base, cfg->phys_base, cfg->reg_size,
 		   K_MEM_CACHE_NONE);
 
-	/* 3. Set FIFO access function pointers based on data-width */
 	switch (cfg->data_width) {
 	case 8:
 		data->bytes_per_access = 1;
@@ -641,21 +797,18 @@ static int spi_sun8i_v3s_init(const struct device *dev)
 		return -EINVAL;
 	}
 
-	/* 4. Release reset */
 	ret = reset_line_deassert_dt(&cfg->reset);
 	if (ret) {
 		LOG_ERR("reset fail");
 		return ret;
 	}
 
-	/* 5. Enable bus clock */
 	ret = clock_control_on(cfg->clock_dev, (void *)cfg->clk_bus);
 	if (ret) {
 		LOG_ERR("bus clk fail");
 		return ret;
 	}
 
-	/* 6. Configure module clock source and frequency */
 	struct sun8i_spi_clk_config clk_cfg = {
 		.src = cfg->clk_src,
 		.output_freq = cfg->clock_frequency,
@@ -667,7 +820,6 @@ static int spi_sun8i_v3s_init(const struct device *dev)
 		return ret;
 	}
 
-	/* 7. GCR: TP_EN | MASTER | EN | SRST, wait for SRST auto-clear */
 	v3s_spi_wr(data, SPI_GCR,
 		   SPI_GCR_TP_EN | SPI_GCR_MASTER | SPI_GCR_EN | SPI_GCR_SRST);
 	for (int timeout = 1000; timeout > 0; timeout--) {
@@ -676,27 +828,44 @@ static int spi_sun8i_v3s_init(const struct device *dev)
 		}
 	}
 
-	/* 8. TCR: SDM (Normal Sample Mode) | SS_OWNER (software CS control) */
 	v3s_spi_wr(data, SPI_TCR, SPI_TCR_SDM | SPI_TCR_SS_OWNER);
-
-	/* 9. Disable all interrupts (enabled per-transfer in interrupt mode) */
 	v3s_spi_wr(data, SPI_IER, 0);
 
-	/* 10. FIFO trigger levels */
 	v3s_spi_wr(data, SPI_FCR,
 		   SPI_FCR_TX_TRIG(SPI_FIFO_TRIG_LEVEL) |
 		   (SPI_FIFO_TRIG_LEVEL & SPI_FCR_RX_TRIG_MASK));
 
-	/* 11. IRQ config (reserved for P1 interrupt mode) */
 	cfg->irq_config(dev);
 
-	/* 12. Initialize GPIO CS (if any) */
+#ifdef CONFIG_SPI_SUN8I_V3S_DMA
+	if (cfg->dma_dev != NULL) {
+		if (!device_is_ready(cfg->dma_dev)) {
+			LOG_ERR("DMA device not ready");
+			return -ENODEV;
+		}
+
+		for (int i = 0; i < V3S_DMA_NUM; i++) {
+			ret = dma_request_channel(cfg->dma_dev, NULL);
+			if (ret < 0) {
+				LOG_ERR("dma_request_channel failed %d", ret);
+				return ret;
+			}
+			data->dma[i].channel = (uint32_t)ret;
+		}
+
+		k_sem_init(&data->dma_sem, 0, 2);
+
+		LOG_DBG("DMA channels: tx=%u rx=%u",
+			data->dma[V3S_DMA_TX].channel,
+			data->dma[V3S_DMA_RX].channel);
+	}
+#endif
+
 	ret = spi_context_cs_configure_all(&data->ctx);
 	if (ret < 0) {
 		return ret;
 	}
 
-	/* 13. Release initial lock */
 	spi_context_unlock_unconditionally(&data->ctx);
 
 	LOG_DBG("SPI0 ready (data-width=%u)", cfg->data_width);
@@ -767,6 +936,16 @@ static int spi_sun8i_v3s_pm_action(const struct device *dev,
 			(SUN8I_SPI_CLK_SRC_HOSC)),				\
 		.gpio_cs = DT_INST_NODE_HAS_PROP(inst, gpio_cs),		\
 		.data_width = DT_INST_PROP(inst, allwinner_data_width),		\
+		IF_ENABLED(CONFIG_SPI_SUN8I_V3S_DMA,				\
+			(.dma_dev = COND_CODE_1(					\
+				DT_INST_DMAS_HAS_NAME(inst, tx),		\
+				(DEVICE_DT_GET(					\
+					DT_INST_DMAS_CTLR_BY_NAME(inst, tx))),	\
+				(NULL)),					\
+			 .dma_drq_port = COND_CODE_1(				\
+				DT_INST_DMAS_HAS_NAME(inst, tx),		\
+				(DT_INST_DMAS_CELL_BY_NAME(inst, tx, request)),	\
+				(0)),))						\
 	};									\
 	PM_DEVICE_DT_INST_DEFINE(inst, spi_sun8i_v3s_pm_action);		\
 	SPI_DEVICE_DT_INST_DEFINE(inst, spi_sun8i_v3s_init,			\
