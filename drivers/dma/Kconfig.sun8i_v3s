@@ -1,6 +1,6 @@
 # Allwinner sun8i V3s DMA configuration options
 
-# Copyright (c) 2026
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
 config DMA_SUN8I_V3S
