@@ -774,7 +774,7 @@ static const struct dma_driver_api sun8i_v3s_dma_api = {
 		NULL,							\
 		&dma_sun8i_v3s_data_##n,				\
 		&dma_sun8i_v3s_config_##n,				\
-		POST_KERNEL,						\
+		PRE_KERNEL_1,						\
 		CONFIG_DMA_INIT_PRIORITY,				\
 		&sun8i_v3s_dma_api);
 

@@ -21,6 +21,8 @@ static const struct arm_mmu_region mmu_regions[] = {
 	MMU_REGION_FLAT_ENTRY("timer", 0x01c20c00, 0x1000, MT_DEVICE | MPERM_R | MPERM_W),
 	MMU_REGION_FLAT_ENTRY("dma",   0x01c02000, 0x1000, MT_DEVICE | MPERM_R | MPERM_W),
 	MMU_REGION_FLAT_ENTRY("spi0", 0x01c68000, 0x1000, MT_DEVICE | MPERM_R | MPERM_W),
+	MMU_REGION_FLAT_ENTRY("twi0", 0x01c2ac00, 0x1000, MT_DEVICE | MPERM_R | MPERM_W),
+	MMU_REGION_FLAT_ENTRY("twi1", 0x01c2b000, 0x1000, MT_DEVICE | MPERM_R | MPERM_W),
 };
 
 const struct arm_mmu_config mmu_config = {

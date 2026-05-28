@@ -45,6 +45,9 @@
 #define FUNC_PC_SDC2	2	/* PC0=CLK, PC1=CMD, PC2=RST, PC3=D0 */
 #define FUNC_PC_SPI0	3	/* PC0=MISO, PC1=CLK, PC2=CS, PC3=MOSI */
 
+/* Port B functions */
+#define FUNC_PB_TWI0	2	/* PB4=SCL, PB5=SDA */
+
 /* Port F functions */
 #define FUNC_PF_UART0	2	/* PF2=TX, PF4=RX */
 
