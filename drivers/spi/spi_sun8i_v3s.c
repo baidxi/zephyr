@@ -59,8 +59,8 @@ LOG_MODULE_REGISTER(spi_sun8i_v3s);
 #define SPI_TCR_SS_SEL(x)	(((x) & 0x3) << SPI_TCR_SS_SEL_SHIFT)
 #define SPI_TCR_SS_OWNER	BIT(6)   /* SS_OWNER: 0=controller, 1=software */
 #define SPI_TCR_SS_LEVEL	BIT(7)   /* SS_LEVEL: manual CS level (when SS_OWNER=1) */
-#define SPI_TCR_DDB		BIT(8)   /* DMA burst mode (Linux: DHB) */
-#define SPI_TCR_DHB		BIT(9)
+#define SPI_TCR_DHB		BIT(8)   /* Discard Hash Burst (1=discard unused RX) */
+#define SPI_TCR_DDB		BIT(9)   /* Dummy Burst Type (1=dummy=ONE, 0=ZERO) */
 #define SPI_TCR_SDM		BIT(13)  /* Normal Sample Mode */
 #define SPI_TCR_XCH		BIT(31)  /* Exchange burst trigger (auto-clear) */
 
@@ -374,14 +374,16 @@ static int spi_sun8i_v3s_dma_setup(const struct device *dev, int dir,
 					    : PERIPHERAL_TO_MEMORY;
 	dma->cfg.dma_slot = cfg->dma_drq_port;
 	/*
-	 * TXD accepts 32-bit writes when using DMA (per Linux sun6i_spi).
-	 * RXD is read as 8-bit as the FIFO returns one byte per access.
+	 * Source and destination data sizes must match: the V3s DMA
+	 * controller does not support width packing (e.g. 4 x 1-byte
+	 * reads → 1 x 4-byte write).  Mismatched widths cause the
+	 * channel to stall without ever completing.
 	 */
 	if (is_tx) {
 		dma->cfg.source_data_size = data->bytes_per_access;
-		dma->cfg.dest_data_size = 4;   /* 32-bit writes to TXD */
+		dma->cfg.dest_data_size = data->bytes_per_access;
 	} else {
-		dma->cfg.source_data_size = 1; /* 8-bit reads from RXD */
+		dma->cfg.source_data_size = data->bytes_per_access;
 		dma->cfg.dest_data_size = data->bytes_per_access;
 	}
 	dma->cfg.source_burst_length = 8;
@@ -608,7 +610,14 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 		   (SPI_FIFO_TRIG_LEVEL & SPI_FCR_RX_TRIG_MASK));
 
 #ifdef CONFIG_SPI_SUN8I_V3S_DMA
-	if (cfg->dma_dev != NULL) {
+	/* Use PIO for transfers that fit within the FIFO (<= 64 bytes).
+	 * DMA requires DDB=1 for correct MTC-based bursting, but DDB=1
+	 * (a.k.a. DHB) discards RX data.  DDB=0 keeps RX but the SPI
+	 * controller uses FIFO count instead of MTC, causing a race
+	 * between DMA-fill and SPI-start for transfers > a few bytes.
+	 * PIO is used for FIFO-sized transfers to avoid both issues.
+	 */
+	if (cfg->dma_dev != NULL && total > SPI_FIFO_DEPTH) {
 		static uint32_t dma_dummy_tx, dma_dummy_rx;
 		bool has_rx = spi_context_rx_buf_on(ctx);
 
@@ -616,7 +625,69 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 		data->dma_status = 0;
 		k_sem_reset(&data->dma_sem);
 
-		/* Setup TX DMA (always needed to clock out data) */
+		/*
+		 * FCR: set DMA trigger level to the transfer size (or
+		 * FIFO_DEPTH/2 for large transfers).  A fixed threshold
+		 * of 32 would miss the RX trigger on small transfers
+		 * (e.g. 4 bytes), causing RX DMA to stall forever.
+		 */
+		/*
+		 * TX trigger = min(total, FIFO_DEPTH/2): DMA refills when the
+		 * TX FIFO runs low.  RX trigger = 1: fires as soon as the first
+		 * byte enters the RX FIFO, avoiding a stall when total < burst.
+		 */
+		uint32_t tx_trig = total;
+		if (tx_trig > SPI_FIFO_DEPTH / 2) {
+			tx_trig = SPI_FIFO_DEPTH / 2;
+		}
+		uint32_t rx_trig = total / 4;
+		if (rx_trig < 1) rx_trig = 1;
+		if (rx_trig > SPI_FIFO_DEPTH / 2) rx_trig = SPI_FIFO_DEPTH / 2;
+		uint32_t fcr = SPI_FCR_TF_DRQ_EN |
+			       ((tx_trig & SPI_FCR_RX_TRIG_MASK) << SPI_FCR_TX_TRIG_SHIFT) |
+			       (rx_trig & SPI_FCR_RX_TRIG_MASK);
+		if (has_rx) {
+			fcr |= SPI_FCR_RF_DRQ_EN;
+		}
+		v3s_spi_wr(data, SPI_FCR, fcr);
+
+		/* SDK-style read-modify-write: the initial read
+		 * unlocks the counter registers after interrupt-
+		 * driven PIO transfers.
+		 */
+		v3s_spi_wr(data, SPI_MBC,
+			   (v3s_spi_rd(data, SPI_MBC) & ~0xFFFFFFU) | total);
+		v3s_spi_wr(data, SPI_MTC,
+			   (v3s_spi_rd(data, SPI_MTC) & ~0xFFFFFFU) | total);
+		v3s_spi_wr(data, SPI_BCC,
+			   (v3s_spi_rd(data, SPI_BCC) & ~0xFFFFFFU) | total);
+		LOG_DBG("DMA cnt: MBC=%u MTC=%u BCC=%u",
+			v3s_spi_rd(data, SPI_MBC),
+			v3s_spi_rd(data, SPI_MTC),
+			v3s_spi_rd(data, SPI_BCC));
+
+		/* DHB = Discard Hash Burst.  SDK sets DHB=1 for
+		 * TX-only (discard RX), DHB=0 for full-duplex.
+		 */
+		if (has_rx) {
+			v3s_spi_wr(data, SPI_TCR,
+				   v3s_spi_rd(data, SPI_TCR) & ~SPI_TCR_DHB);
+		} else {
+			v3s_spi_wr(data, SPI_TCR,
+				   v3s_spi_rd(data, SPI_TCR) | SPI_TCR_DHB);
+		}
+
+		LOG_DBG("DMA xfer: total=%u tx_drq=1 rx_drq=%d",
+			total, has_rx);
+
+		/* Trigger transfer BEFORE configuring DMA (SDK order:
+		 * XCH first so the SPI controller is running when
+		 * DMA starts, matching sunxi_spi_dma_transfer).
+		 */
+		v3s_spi_wr(data, SPI_TCR,
+			   v3s_spi_rd(data, SPI_TCR) | SPI_TCR_XCH);
+
+		/* Now configure and start DMA channels (TX always) */
 		ret = spi_sun8i_v3s_dma_setup(dev, V3S_DMA_TX,
 		    spi_context_tx_buf_on(ctx) ? ctx->tx_buf : NULL,
 		    &dma_dummy_tx, total);
@@ -624,7 +695,6 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 			goto dma_cleanup;
 		}
 
-		/* Setup RX DMA only when caller wants received data */
 		if (has_rx) {
 			ret = spi_sun8i_v3s_dma_setup(dev, V3S_DMA_RX,
 			    ctx->rx_buf, &dma_dummy_rx, total);
@@ -634,39 +704,15 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 			data->dma_pending++;
 		}
 
-		/*
-		 * FCR: DMA trigger level = FIFO_DEPTH/2, with DRQ_EN bits.
-		 */
-		uint32_t trig = SPI_FIFO_DEPTH / 2;
-		uint32_t fcr = SPI_FCR_TF_DRQ_EN |
-			       ((trig & SPI_FCR_RX_TRIG_MASK) << SPI_FCR_TX_TRIG_SHIFT) |
-			       (trig & SPI_FCR_RX_TRIG_MASK);
-		if (has_rx) {
-			fcr |= SPI_FCR_RF_DRQ_EN;
-		}
-		v3s_spi_wr(data, SPI_FCR, fcr);
-
-		/* Burst counters for full transfer */
-		v3s_spi_wr(data, SPI_MBC, total);
-		v3s_spi_wr(data, SPI_MTC, total);
-		v3s_spi_wr(data, SPI_BCC, total);
-
-		/* Enable DMA burst mode */
-		v3s_spi_wr(data, SPI_TCR,
-			   v3s_spi_rd(data, SPI_TCR) | SPI_TCR_DDB);
-
-		LOG_DBG("DMA xfer: total=%u tx_drq=1 rx_drq=%d",
-			total, has_rx);
-
-		/* Trigger transfer */
-		v3s_spi_wr(data, SPI_TCR,
-			   v3s_spi_rd(data, SPI_TCR) | SPI_TCR_XCH);
-
 		/* Wait for DMA channels */
 		for (int i = 0; i < data->dma_pending; i++) {
 			ret = k_sem_take(&data->dma_sem, K_MSEC(5000));
 			if (ret < 0) {
-				LOG_ERR("DMA timeout");
+				LOG_ERR("DMA timeout: FSR=0x%08x TCR=0x%08x ISR=0x%08x GCR=0x%08x",
+					v3s_spi_rd(data, SPI_FSR),
+					v3s_spi_rd(data, SPI_TCR),
+					v3s_spi_rd(data, SPI_ISR),
+					v3s_spi_rd(data, SPI_GCR));
 				data->dma_status = -ETIMEDOUT;
 				data->dma_pending = 0;
 			}
@@ -696,20 +742,6 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 	}
 #endif
 
-#ifdef CONFIG_SPI_SUN8I_V3S_INTERRUPT
-	data->total = total;
-	data->current_config = config;
-
-	uint32_t first = (total > SPI_FIFO_DEPTH) ? SPI_FIFO_DEPTH : total;
-	v3s_spi_start_batch(data, ctx, first);
-	v3s_spi_wr(data, SPI_IER, SPI_IER_TC_INT_EN);
-
-	ret = spi_context_wait_for_completion(ctx);
-	if (ret) {
-		v3s_spi_cs_deassert(data, ctx, config);
-	}
-	goto cs_deassert_done;
-#else
 	while (total > 0) {
 		uint32_t chunk = (total > SPI_FIFO_DEPTH)
 				 ? SPI_FIFO_DEPTH : total;
@@ -743,6 +775,7 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 
 	spi_context_complete(ctx, dev, 0);
 	ret = spi_context_wait_for_completion(ctx);
+#ifdef CONFIG_SPI_SUN8I_V3S_DMA
 cs_deassert:
 #endif
 	v3s_spi_cs_deassert(data, ctx, config);

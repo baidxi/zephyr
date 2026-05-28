@@ -276,7 +276,11 @@ static int sun8i_v3s_dma_config(const struct device *dev, uint32_t channel,
 	stream->dst_width = convert_buswidth(cfg->dest_data_size);
 	stream->src_burst = convert_burst(cfg->source_burst_length);
 	stream->dst_burst = convert_burst(cfg->dest_burst_length);
-	stream->irq_type = cfg->cyclic ? DMA_IRQ_PKG : DMA_IRQ_QUEUE;
+	/* Enable both PKG and QUEUE: the hardware may fire either
+	 * for the last block in a chain, depending on transfer size.
+	 */
+	stream->irq_type = cfg->cyclic ? DMA_IRQ_PKG
+				       : (DMA_IRQ_PKG | DMA_IRQ_QUEUE);
 	stream->state = SUN8I_V3S_DMA_PREPARED;
 
 	/* Flush LLI descriptors to memory — DMA reads from physical memory
@@ -378,6 +382,14 @@ static int sun8i_v3s_dma_stop(const struct device *dev, uint32_t channel)
 	for (int i = 0; i < 8; i++) {
 		if (data->pchan_vchan[i] == channel) {
 			uintptr_t chan_base = reg_base + DMA_CHAN_OFFSET(i);
+
+			uint32_t cur_cnt = sys_read32(chan_base + DMA_CHAN_CUR_CNT);
+			uint32_t cur_src = sys_read32(chan_base + DMA_CHAN_CUR_SRC);
+			uint32_t cur_dst = sys_read32(chan_base + DMA_CHAN_CUR_DST);
+			uint32_t cur_cfg = sys_read32(chan_base + DMA_CHAN_CUR_CFG);
+			LOG_WRN("stop chan %u pchan %d: cur_cnt=%u cur_src=0x%08x"
+				" cur_dst=0x%08x cur_cfg=0x%08x",
+				channel, i, cur_cnt, cur_src, cur_dst, cur_cfg);
 
 			sys_write32(DMA_CHAN_PAUSE_STOP, chan_base + DMA_CHAN_PAUSE);
 			sys_write32(0, chan_base + DMA_CHAN_ENABLE);
@@ -564,7 +576,7 @@ static void sun8i_v3s_dma_isr(const void *dev)
 				}
 			}
 		} else {
-			if (chan_pend & stream->irq_type) {
+			if (chan_pend & (stream->irq_type << (i * DMA_IRQ_WIDTH))) {
 				dma_cache_maintain(stream, true);
 				if (stream->dma_callback) {
 					stream->dma_callback(dev,
