@@ -36,4 +36,4 @@ properties:
     type: phandle-array
 
 dma-cells:
-  - request
+  - channel

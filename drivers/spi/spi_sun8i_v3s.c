@@ -757,9 +757,8 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 
 	spi_context_complete(ctx, dev, 0);
 	ret = spi_context_wait_for_completion(ctx);
-#ifdef CONFIG_SPI_SUN8I_V3S_DMA
+
 cs_deassert:
-#endif
 	v3s_spi_cs_deassert(data, ctx, config);
 
 out_release:
@@ -1064,7 +1063,7 @@ static int spi_sun8i_v3s_pm_action(const struct device *dev,
 				(NULL)),					\
 			 .dma_drq_port = COND_CODE_1(				\
 				DT_INST_DMAS_HAS_NAME(inst, tx),		\
-				(DT_INST_DMAS_CELL_BY_NAME(inst, tx, request)),	\
+				(DT_INST_DMAS_CELL_BY_NAME(inst, tx, channel)),	\
 				(0)),))						\
 	};									\
 	PM_DEVICE_DT_INST_DEFINE(inst, spi_sun8i_v3s_pm_action);		\
