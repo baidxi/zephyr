@@ -502,8 +502,15 @@ static int spi_sun8i_v3s_configure(const struct device *dev,
 	}
 
 	uint32_t tcr = v3s_spi_rd(data, SPI_TCR);
+
+	/*
+	 * Only update mode/CS-polarity bits here. SS_LEVEL is managed
+	 * exclusively by the transceive path (assert on transfer start,
+	 * deassert on completion).  Writing SS_LEVEL=0 here would glitch
+	 * CS before the transfer even begins.
+	 */
 	tcr &= ~(SPI_TCR_CPHA | SPI_TCR_CPOL | SPI_TCR_SPOL |
-		 SPI_TCR_SS_LEVEL | SPI_TCR_SS_SEL_MASK);
+		 SPI_TCR_SS_SEL_MASK);
 
 	if (SPI_MODE_GET(config->operation) & SPI_MODE_CPOL) {
 		tcr |= SPI_TCR_CPOL;
@@ -520,6 +527,17 @@ static int spi_sun8i_v3s_configure(const struct device *dev,
 
 	if (!cfg->gpio_cs && !spi_cs_is_gpio(config)) {
 		tcr |= SPI_TCR_SS_SEL(config->slave);
+	}
+
+	/*
+	 * Keep CS deasserted while changing configuration:
+	 *   SPOL=0 (active-high)  → SS_LEVEL=0 keeps CS deasserted
+	 *   SPOL=1 (active-low)   → SS_LEVEL=1 keeps CS deasserted
+	 */
+	if (tcr & SPI_TCR_SPOL) {
+		tcr |= SPI_TCR_SS_LEVEL;
+	} else {
+		tcr &= ~SPI_TCR_SS_LEVEL;
 	}
 
 	v3s_spi_wr(data, SPI_TCR, tcr);
@@ -545,7 +563,9 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 				    const struct spi_buf_set *tx_bufs,
 				    const struct spi_buf_set *rx_bufs)
 {
+#ifdef CONFIG_SPI_SUN8I_V3S_DMA
 	const struct spi_sun8i_v3s_config *cfg = dev->config;
+#endif
 	struct spi_sun8i_v3s_data *data = dev->data;
 	struct spi_context *ctx = &data->ctx;
 	int ret = 0;
@@ -581,9 +601,11 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 		v3s_spi_wr(data, SPI_TCR, tcr);
 	}
 
-	/* Reset FIFOs */
+	/* Reset FIFOs (Linux-style: assert reset, then set trigger levels) */
+	v3s_spi_wr(data, SPI_FCR, SPI_FCR_RF_RST | SPI_FCR_TF_RST);
 	v3s_spi_wr(data, SPI_FCR,
-		   v3s_spi_rd(data, SPI_FCR) | SPI_FCR_RF_RST | SPI_FCR_TF_RST);
+		   SPI_FCR_TX_TRIG(SPI_FIFO_TRIG_LEVEL) |
+		   (SPI_FIFO_TRIG_LEVEL & SPI_FCR_RX_TRIG_MASK));
 
 #ifdef CONFIG_SPI_SUN8I_V3S_DMA
 	if (cfg->dma_dev != NULL) {
@@ -694,8 +716,11 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 
 		v3s_spi_wr(data, SPI_MBC, chunk);
 		v3s_spi_wr(data, SPI_MTC, chunk);
+		v3s_spi_wr(data, SPI_BCC, chunk);
 		spi_fill_tx_fifo(data, ctx, chunk);
 
+		/* Flush writes before triggering transfer */
+		v3s_spi_rd(data, SPI_FSR);
 		v3s_spi_wr(data, SPI_TCR,
 			   v3s_spi_rd(data, SPI_TCR) | SPI_TCR_XCH);
 
@@ -718,10 +743,8 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 
 	spi_context_complete(ctx, dev, 0);
 	ret = spi_context_wait_for_completion(ctx);
-	goto cs_deassert;
-#endif
-
 cs_deassert:
+#endif
 	v3s_spi_cs_deassert(data, ctx, config);
 cs_deassert_done:
 
@@ -797,12 +820,12 @@ static int spi_sun8i_v3s_init(const struct device *dev)
 		return -EINVAL;
 	}
 
-	ret = reset_line_deassert_dt(&cfg->reset);
-	if (ret) {
-		LOG_ERR("reset fail");
-		return ret;
-	}
-
+	/*
+	 * Init sequence must match Linux sun6i_spi_runtime_resume():
+	 *  1. Enable clocks first
+	 *  2. Deassert reset second
+	 *  3. GCR write (no SRST — SoC reset already handled it)
+	 */
 	ret = clock_control_on(cfg->clock_dev, (void *)cfg->clk_bus);
 	if (ret) {
 		LOG_ERR("bus clk fail");
@@ -820,17 +843,21 @@ static int spi_sun8i_v3s_init(const struct device *dev)
 		return ret;
 	}
 
-	v3s_spi_wr(data, SPI_GCR,
-		   SPI_GCR_TP_EN | SPI_GCR_MASTER | SPI_GCR_EN | SPI_GCR_SRST);
-	for (int timeout = 1000; timeout > 0; timeout--) {
-		if (!(v3s_spi_rd(data, SPI_GCR) & SPI_GCR_SRST)) {
-			break;
-		}
+	ret = reset_line_deassert_dt(&cfg->reset);
+	if (ret) {
+		LOG_ERR("reset fail");
+		return ret;
 	}
+
+	/* Enable controller (no SRST — SoC reset line already reset hardware) */
+	v3s_spi_wr(data, SPI_GCR,
+		   SPI_GCR_TP_EN | SPI_GCR_MASTER | SPI_GCR_EN);
 
 	v3s_spi_wr(data, SPI_TCR, SPI_TCR_SDM | SPI_TCR_SS_OWNER);
 	v3s_spi_wr(data, SPI_IER, 0);
 
+	/* Reset FIFOs to clear power-on state */
+	v3s_spi_wr(data, SPI_FCR, SPI_FCR_RF_RST | SPI_FCR_TF_RST);
 	v3s_spi_wr(data, SPI_FCR,
 		   SPI_FCR_TX_TRIG(SPI_FIFO_TRIG_LEVEL) |
 		   (SPI_FIFO_TRIG_LEVEL & SPI_FCR_RX_TRIG_MASK));
@@ -890,7 +917,7 @@ static int spi_sun8i_v3s_pm_action(const struct device *dev,
 		}
 		reset_line_deassert_dt(&cfg->reset);
 		v3s_spi_wr(data, SPI_GCR,
-			   SPI_GCR_TP_EN | SPI_GCR_MASTER | SPI_GCR_EN);
+			   SPI_GCR_TP_EN | SPI_GCR_MASTER | SPI_GCR_EN);;
 		return 0;
 	default:
 		return -ENOTSUP;
