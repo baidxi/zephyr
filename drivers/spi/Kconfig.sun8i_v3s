@@ -8,16 +8,6 @@ config SPI_SUN8I_V3S
 	help
 	  Enable Allwinner sun8i V3s SPI driver.
 
-config SPI_SUN8I_V3S_INTERRUPT
-	bool "Enable interrupt-driven transfer support"
-	default y
-	depends on SPI_SUN8I_V3S
-	help
-	  Enable interrupt-driven SPI transfers instead of polling.
-	  When enabled, the driver uses TC (Transfer Complete) interrupts
-	  to progress through multi-batch transfers, allowing the CPU to
-	  sleep between batches. When disabled, busy-wait polling is used.
-
 config SPI_SUN8I_V3S_DMA
 	bool "Enable DMA-driven transfer support"
 	default y

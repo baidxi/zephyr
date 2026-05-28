@@ -133,23 +133,41 @@ struct spi_sun8i_v3s_dma_data {
 };
 #endif
 
+struct spi_sun8i_v3s_request {
+	sys_snode_t node;
+	const struct spi_config *config;
+	const struct spi_buf_set *tx_bufs;
+	const struct spi_buf_set *rx_bufs;
+	spi_callback_t cb;
+	void *userdata;
+};
+
+
 struct spi_sun8i_v3s_data {
 	struct spi_context ctx;
 	mm_reg_t base;
 	uint8_t bytes_per_access;	/* 1, 2, or 4 (from DT allwinner,data-width) */
 	v3s_fifo_write_t fifo_write;	/* fifo_write8/16/32 */
 	v3s_fifo_read_t fifo_read;	/* fifo_read8/16/32 */
-#ifdef CONFIG_SPI_SUN8I_V3S_INTERRUPT
-	uint32_t total;		/* remaining bytes for interrupt-driven transfer */
-	const struct spi_config *current_config; /* config for CS deassert in ISR */
-#endif
 #ifdef CONFIG_SPI_SUN8I_V3S_DMA
 	struct spi_sun8i_v3s_dma_data dma[V3S_DMA_NUM];
 	struct k_sem dma_sem;
 	int dma_status;
 	uint8_t dma_pending;
 #endif
+	/* Async ring queue (power-of-2, counter + AND for index) */
+#define SPI_SUN8I_V3S_QUEUE_BITS 3
+#define SPI_SUN8I_V3S_QUEUE_SIZE (1 << SPI_SUN8I_V3S_QUEUE_BITS)
+#define SPI_SUN8I_V3S_QUEUE_MASK (SPI_SUN8I_V3S_QUEUE_SIZE - 1)
+	struct spi_sun8i_v3s_request queue[SPI_SUN8I_V3S_QUEUE_SIZE];
+	uint32_t enq_count;	/* # items ever enqueued (producer counter) */
+	uint32_t deq_count;	/* # items ever dequeued  (consumer counter) */
+	struct k_sem queue_sem;
+	struct k_thread worker;
+	bool worker_running;
 };
+static K_THREAD_STACK_DEFINE(worker_stack, 1024);
+
 
 struct spi_sun8i_v3s_config {
 	uintptr_t phys_base;
@@ -191,6 +209,12 @@ static inline void v3s_spi_wr(const struct spi_sun8i_v3s_data *data,
  *
  * Scans all CDR1 and CDR2 values, picks the closest to req_freq.
  */
+
+/*
+ * Queued async request.  transceive_async enqueues it; the worker
+ * thread dequeues and calls spi_sun8i_v3s_transceive.
+ */
+
 static int spi_calc_divider(uint32_t src_freq, uint32_t req_freq,
 			    uint32_t *ccr_val)
 {
@@ -300,27 +324,6 @@ static void spi_drain_rx_fifo(struct spi_sun8i_v3s_data *data,
 		}
 		spi_context_update_rx(ctx, 1, 1);
 	}
-}
-
-/*
- * Start a single batch: set MBC/MTC/BCC, fill TX FIFO, trigger XCH.
- * Used by both polling and interrupt-driven paths.
- */
-static void v3s_spi_start_batch(struct spi_sun8i_v3s_data *data,
-				 struct spi_context *ctx, uint32_t chunk)
-{
-	v3s_spi_wr(data, SPI_MBC, chunk);
-	v3s_spi_wr(data, SPI_MTC, chunk);
-	v3s_spi_wr(data, SPI_BCC, chunk);
-	spi_fill_tx_fifo(data, ctx, chunk);
-
-	LOG_DBG("batch start: MBC=%u MTC=%u BCC=%u TCR=0x%08x",
-		v3s_spi_rd(data, SPI_MBC),
-		v3s_spi_rd(data, SPI_MTC),
-		v3s_spi_rd(data, SPI_BCC),
-		v3s_spi_rd(data, SPI_TCR));
-
-	v3s_spi_wr(data, SPI_TCR, v3s_spi_rd(data, SPI_TCR) | SPI_TCR_XCH);
 }
 
 /*
@@ -447,35 +450,14 @@ static void spi_sun8i_v3s_isr(const struct device *dev)
 		return;
 	}
 
-#ifdef CONFIG_SPI_SUN8I_V3S_INTERRUPT
-	if (isr & SPI_ISR_TC) {
-		uint32_t chunk = (data->total > SPI_FIFO_DEPTH)
-				 ? SPI_FIFO_DEPTH : data->total;
-		uint32_t rx_count = v3s_spi_rd(data, SPI_FSR) & SPI_FSR_RF_CNT_MASK;
-		spi_drain_rx_fifo(data, ctx, rx_count);
-
-		data->total -= chunk;
-
-		if (data->total > 0) {
-			uint32_t next = (data->total > SPI_FIFO_DEPTH)
-					? SPI_FIFO_DEPTH : data->total;
-			v3s_spi_start_batch(data, ctx, next);
-		} else {
-			v3s_spi_wr(data, SPI_IER, 0);
-			v3s_spi_cs_deassert(data, ctx, data->current_config);
-			spi_context_complete(ctx, dev, 0);
-		}
-		return;
-	}
-#else
-	if (isr & SPI_ISR_TC) {
+if (isr & SPI_ISR_TC) {
 		spi_drain_rx_fifo(data, ctx,
 				  v3s_spi_rd(data, SPI_FSR) & SPI_FSR_RF_CNT_MASK);
 		v3s_spi_wr(data, SPI_IER, 0);
+		v3s_spi_cs_deassert(data, ctx, ctx->config);
 		spi_context_complete(ctx, dev, 0);
 		return;
 	}
-#endif
 
 	if (isr & SPI_ISR_RX_RDY) {
 		spi_drain_rx_fifo(data, ctx,
@@ -779,21 +761,81 @@ static int spi_sun8i_v3s_transceive(const struct device *dev,
 cs_deassert:
 #endif
 	v3s_spi_cs_deassert(data, ctx, config);
-cs_deassert_done:
 
 out_release:
 	spi_context_release(ctx, ret);
 	return ret;
 }
 
+/*
+ * Worker thread: dequeues async requests and executes them
+ * by calling the existing sync transceive function.
+ */
+static void spi_sun8i_v3s_worker(void *arg1, void *arg2, void *arg3)
+{
+	const struct device *dev = (const struct device *)arg1;
+	struct spi_sun8i_v3s_data *data = dev->data;
+	while (data->worker_running) {
+		if (k_sem_take(&data->queue_sem, K_MSEC(100)) < 0) {
+			continue;
+		}
+
+		while (__atomic_load_n(&data->deq_count, __ATOMIC_RELAXED) !=
+		       __atomic_load_n(&data->enq_count, __ATOMIC_ACQUIRE)) {
+			uint32_t slot = __atomic_fetch_add(&data->deq_count, 1,
+							 __ATOMIC_RELAXED) &
+				       SPI_SUN8I_V3S_QUEUE_MASK;
+			struct spi_sun8i_v3s_request *req =
+				&data->queue[slot];
+
+			int ret = spi_sun8i_v3s_transceive(dev, req->config,
+					       req->tx_bufs,
+					       req->rx_bufs);
+
+			if (req->cb) {
+				req->cb(dev, ret, req->userdata);
+			}
+		}
+	}}
+
 #ifdef CONFIG_SPI_ASYNC
 static int spi_sun8i_v3s_transceive_async(const struct device *dev,
 					  const struct spi_config *config,
 					  const struct spi_buf_set *tx_bufs,
 					  const struct spi_buf_set *rx_bufs,
-					  struct k_poll_signal *async)
+					  spi_callback_t cb,
+					  void *userdata)
 {
-	return -ENOTSUP;
+	struct spi_sun8i_v3s_data *data = dev->data;
+	uint32_t enq, deq, slot;
+	struct spi_sun8i_v3s_request *req;
+
+	/* CAS loop: atomically claim a slot.  Retry if another
+	 * producer races us on enq_count between the read and CAS.
+	 */
+	do {
+		enq = __atomic_load_n(&data->enq_count, __ATOMIC_RELAXED);
+		deq = __atomic_load_n(&data->deq_count, __ATOMIC_ACQUIRE);
+
+		if (enq - deq >= SPI_SUN8I_V3S_QUEUE_SIZE) {
+			return -ENOBUFS;
+		}
+	} while (!__atomic_compare_exchange_n(&data->enq_count, &enq,
+					      enq + 1, false,
+					      __ATOMIC_ACQ_REL,
+					      __ATOMIC_RELAXED));
+
+	slot = enq & SPI_SUN8I_V3S_QUEUE_MASK;
+	req = &data->queue[slot];
+	req->config = config;
+	req->tx_bufs = tx_bufs;
+	req->rx_bufs = rx_bufs;
+	req->cb = cb;
+	req->userdata = userdata;
+
+	k_sem_give(&data->queue_sem);
+
+	return 0;
 }
 #endif
 
@@ -926,6 +968,15 @@ static int spi_sun8i_v3s_init(const struct device *dev)
 		return ret;
 	}
 
+	/* Init async request queue and start worker thread */
+	k_sem_init(&data->queue_sem, 0, 1);
+	data->worker_running = true;
+	k_thread_create(&data->worker, worker_stack,
+			K_THREAD_STACK_SIZEOF(worker_stack),
+			spi_sun8i_v3s_worker,
+			(void *)dev, NULL, NULL,
+			K_PRIO_COOP(1), 0, K_NO_WAIT);
+
 	spi_context_unlock_unconditionally(&data->ctx);
 
 	LOG_DBG("SPI0 ready (data-width=%u)", cfg->data_width);
@@ -941,6 +992,9 @@ static int spi_sun8i_v3s_pm_action(const struct device *dev,
 
 	switch (action) {
 	case PM_DEVICE_ACTION_SUSPEND:
+		data->worker_running = false;
+		k_sem_give(&data->queue_sem);
+		k_sleep(K_MSEC(200));
 		v3s_spi_wr(data, SPI_GCR,
 			   v3s_spi_rd(data, SPI_GCR) & ~SPI_GCR_EN);
 		return clock_control_off(cfg->clock_dev, (void *)cfg->clk_bus);
@@ -950,7 +1004,13 @@ static int spi_sun8i_v3s_pm_action(const struct device *dev,
 		}
 		reset_line_deassert_dt(&cfg->reset);
 		v3s_spi_wr(data, SPI_GCR,
-			   SPI_GCR_TP_EN | SPI_GCR_MASTER | SPI_GCR_EN);;
+			   SPI_GCR_TP_EN | SPI_GCR_MASTER | SPI_GCR_EN);
+		data->worker_running = true;
+		k_thread_create(&data->worker, worker_stack,
+				K_THREAD_STACK_SIZEOF(worker_stack),
+				spi_sun8i_v3s_worker,
+				(void *)dev, NULL, NULL,
+				K_PRIO_COOP(1), 0, K_NO_WAIT);
 		return 0;
 	default:
 		return -ENOTSUP;
