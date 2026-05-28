@@ -1,0 +1,20 @@
+# Copyright (c) 2026 jeck chen
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner sun8i V3s TWI (I2C) interface
+compatible: "allwinner,sun8i-v3s-i2c"
+include: [i2c-controller.yaml, reset-device.yaml, pinctrl-device.yaml]
+properties:
+  reg:
+    required: true
+  interrupts:
+    required: true
+  clocks:
+    required: true
+  resets:
+    required: true
+  pinctrl-0:
+    required: true
+  pinctrl-names:
+    required: true
