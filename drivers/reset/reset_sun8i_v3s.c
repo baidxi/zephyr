@@ -67,6 +67,7 @@ static struct sun8i_rst_info rst_infos[] = {
 	RST_INFO(RST_BUS_UART0, 0x2d8, 16),
 	RST_INFO(RST_BUS_UART1, 0x2d8, 17),
 	RST_INFO(RST_BUS_UART2, 0x2d8, 18),
+	RST_INFO(RST_USB_PHY0, 0xcc, 0),
 };
 
 static int sun8i_reset_line_assert(const struct device *dev, uint32_t id)

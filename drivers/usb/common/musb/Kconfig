@@ -1,0 +1,24 @@
+# Copyright (c) 2026 jeck chen  <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+rsource "glue/Kconfig"
+
+config MUSB
+	bool "MUSB USB controller driver core"
+	help
+	  Mentor Graphics MUSB USB controller driver core.
+	  Provides hardware abstraction for MUSB HDRC controllers,
+	  shared between UDC (device) and UHC (host) modes.
+
+if MUSB
+
+endif # MUSB
+
+config MUSB_LOG_LEVEL
+	int "MUSB driver log level"
+	default 0
+	depends on MUSB
+
+module = MUSB
+module-str = MUSB
+source "subsys/logging/Kconfig.template.log_config"

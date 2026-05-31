@@ -1,0 +1,25 @@
+# Copyright (c) 2026 jeck chen  <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config SUNXI_USB_COMMON
+	bool
+	help
+	  Enable Allwinner sunxi USB common code (PHY pseudo-device drivers).
+	  This option is selected by sunxi PHY drivers when appropriate.
+
+config SUNXI_USB_PHY_SUN4I
+	bool "Allwinner sun4i USB PHY driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN4I_USB_PHY_ENABLED
+	select SUNXI_USB_COMMON
+	help
+	  Allwinner sun4i USB PHY pseudo-device driver.
+	  Supports sun4i through sun50i SoCs.
+
+	  Phase 1: sun8i V3s with peripheral mode.
+	  Phase 2: Multi-SoC support (H3, A64, A33, etc.).
+	  Phase 3: OTG dynamic role switching.
+
+module = SUNXI_USB_COMMON
+module-str = Allwinner sunxi USB common code
+source "subsys/logging/Kconfig.template.log_config"

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 juno <baidxi404629@gmail.com>
+ * Copyright (c) 2026 jeck chen  <baidxi404629@gmail.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -100,7 +100,6 @@ static const struct sun8i_clock_info sun8i_v3s_clock_info[] = {
 	CLK_PROP(CLK_MMC2, 0x90, 0),
 	CLK_PROP(CLK_CE, 0x9c, 0),
 	CLK_PROP(CLK_SPI0, 0xa0, _sun8i_set_clk_spi0),
-	CLK_PROP(CLK_USB_PHY0, 0xcc, 0),
 };
 
 static const struct sun8i_clock_gate_info sun8i_clock_gate_info[] = {
@@ -129,6 +128,8 @@ static const struct sun8i_clock_gate_info sun8i_clock_gate_info[] = {
 	CLK_GATE(CLK_BUS_UART2, 0x6c, 18),
 	CLK_GATE(CLK_BUS_EPHY, 0x70, 0),
 	CLK_GATE(CLK_BUS_DBG, 0x70, 7),
+	CLK_GATE(CLK_USB_PHY0, 0xcc, 8),
+	CLK_GATE(CLK_USB_OHCI0, 0xcc, 16),
 };
 
 static int sun8i_clock_on(const struct device *dev, clock_control_subsys_t sys)
@@ -159,6 +160,10 @@ static int sun8i_clock_on(const struct device *dev, clock_control_subsys_t sys)
 	regval = sys_read32(config->base + info->offset);
 	regval |= BIT(info->bit);
 	sys_write32(regval, config->base + info->offset);
+	LOG_DBG("clk_on: base=0x%lx off=0x%x bit=%u val=0x%08x",
+		(unsigned long)config->base,
+		info->offset, info->bit,
+		sys_read32(config->base + info->offset));
 	k_spin_unlock(&data->lock, key);
 
 	return 0;

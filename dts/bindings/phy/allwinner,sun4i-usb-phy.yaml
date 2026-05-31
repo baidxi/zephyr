@@ -1,0 +1,65 @@
+# Copyright (c) 2026 jeck chen  <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner sun4i USB PHY Controller
+
+compatible: "allwinner,sun4i-usb-phy"
+
+include: [phy-controller.yaml, reset-device.yaml]
+
+phy-cells:
+  - index
+
+properties:
+  "#phy-cells":
+    const: 1
+
+  reg:
+    required: true
+
+  reg-names:
+    required: true
+
+  clocks:
+    required: true
+
+  clock-names:
+    required: true
+
+  resets:
+    required: true
+
+  reset-names:
+    required: true
+
+  dr-mode:
+    type: string
+    enum: ["host", "peripheral", "otg"]
+    description: |
+      USB dual-role mode. Phase 1 uses "peripheral" only.
+      - host: Force host mode
+      - peripheral: Force device/peripheral mode
+      - otg: Dynamic role switch via ID pin
+
+  phy0-dual-route:
+    type: boolean
+    description: |
+      Indicates that PHY0 can be routed between MUSB (peripheral) and
+      EHCI/OHCI (host) controllers via the OTGCTL_ROUTE_MUSB bit.
+      Present on V3s, H3, A64, and similar SoCs.
+
+  usb0_id_det-gpios:
+    type: phandle-array
+    description: |
+      GPIO phandle for USB OTG ID pin detection.
+      When the ID pin is grounded (id_det=0), the USB controller
+      enters host mode. When floating/high (id_det=1), peripheral mode.
+      If not specified, defaults to peripheral mode.
+
+  usb0_vbus_det-gpios:
+    type: phandle-array
+    description: |
+      GPIO phandle for USB VBUS detection.
+      When VBUS is present (vbus_det=1), the USB peripheral can
+      connect. When absent (vbus_det=0), the peripheral disconnects.
+      If not specified, defaults to VBUS always present.

@@ -82,6 +82,10 @@
 	status = "okay";
 };
 
+&gpiof {
+	status = "okay";
+};
+
 &gpiog {
 	status = "okay";
 };
@@ -96,5 +100,15 @@
 &i2c0 {
 	pinctrl-0 = <&i2c0_pins>;
 	pinctrl-names = "default";
+	status = "okay";
+};
+
+&usbphy {
+	dr-mode = "otg";
+	usb0_id_det-gpios = <&gpiof 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+	status = "okay";
+};
+
+&usbotg {
 	status = "okay";
 };

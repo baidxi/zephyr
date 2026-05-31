@@ -1,0 +1,20 @@
+# Copyright (c) 2026 jeck chen  <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config UDC_MUSB
+	bool "MUSB USB device controller driver"
+	depends on MUSB
+	select UDC_DRIVER_HAS_HIGH_SPEED_SUPPORT
+	help
+	  MUSB USB device controller driver.
+	  Selects UDC_DRIVER_HAS_HIGH_SPEED_SUPPORT because MUSB IP is
+	  HS-capable (actual speed depends on PHY).
+
+config UDC_MUSB_SUNXI
+	bool "Allwinner Sunxi MUSB UDC"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_MUSB_ENABLED
+	select UDC_MUSB
+	select MUSB_GLUE_SUNXI
+	help
+	  Allwinner Sunxi MUSB UDC driver for V3s/H3 SoCs.

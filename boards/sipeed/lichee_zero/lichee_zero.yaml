@@ -13,3 +13,4 @@ supported:
   - timer
   - spi
   - i2c
+  - usb
