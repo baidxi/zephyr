@@ -91,18 +91,18 @@ struct musb_callbacks {
 	 * The adapter layer should call udc_submit_event() or handle the
 	 * setup packet via udc_setup_received().
 	 */
-	void (*ep0_setup)(const struct musb_dev *musb,
+	void (*ep0_setup)(struct musb_dev *musb,
 			  const void *setup_data);
 
 	/** TX transfer completed on given endpoint */
-	void (*ep_tx_done)(const struct musb_dev *musb, uint8_t ep);
+	void (*ep_tx_done)(struct musb_dev *musb, uint8_t ep);
 
 	/** RX data ready on given endpoint, len bytes available in FIFO */
-	void (*ep_rx_ready)(const struct musb_dev *musb, uint8_t ep,
+	void (*ep_rx_ready)(struct musb_dev *musb, uint8_t ep,
 			    uint16_t len);
 
 	/** Bus event (reset/suspend/resume/disconnect) */
-	void (*bus_event)(const struct musb_dev *musb,
+	void (*bus_event)(struct musb_dev *musb,
 			  enum musb_bus_event event);
 };
 

@@ -48,7 +48,14 @@
 /* Port B functions */
 #define FUNC_PB_TWI0	2	/* PB4=SCL, PB5=SDA */
 
-/* Port F functions */
-#define FUNC_PF_UART0	2	/* PF2=TX, PF4=RX */
+/* Port F functions — verified against Linux pinctrl-sun8i-v3s.c */
+#define FUNC_PF_SDC0	2	/* PF0=D1, PF1=D0, PF2=CLK, PF3=CMD, PF4=D3, PF5=D2 */
+#define FUNC_PF_UART0	3	/* PF2=TX, PF4=RX */
+
+#define FUNC_PB_UART0 3
+/* Port G functions — verified against Linux pinctrl-sun8i-v3s.c */
+#define FUNC_PG_MMC1	2	/* PG0=CLK, PG1=CMD, PG2=D0, PG3=D1, PG4=D2, PG5=D3 */
+
+#define FUNC_PC_MMC2	2
 
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_PINCTRL_ALLWINNER_SUN8I_V3S_PINCTRL_H_ */

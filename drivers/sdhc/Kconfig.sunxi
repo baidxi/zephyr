@@ -1,0 +1,30 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config SDHC_SUNXI
+	bool "Allwinner Sunxi SDHC driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUNXI_MMC_ENABLED
+	select SDHC_SUPPORTS_NATIVE_MODE
+	help
+	  SDHC driver for Allwinner SoCs. Supports MMC/SD/SDIO cards
+	  with 1/4-bit bus width, internal DMA, and card detection.
+
+config SDHC_SUNXI_DMA
+	bool "Use IDMAC DMA for data transfers"
+	default y
+	depends on SDHC_SUNXI
+	help
+	  Enable IDMAC (Internal DMA Controller) for data transfers.
+	  The IDMAC engine automatically moves data between RAM and
+	  the SDHC FIFO via descriptor chains, freeing the CPU from
+	  PIO polling.  When disabled, PIO mode is used instead.
+
+config SDHC_SUNXI_DMA_BUF_SIZE
+	int "DMA bounce buffer size in bytes"
+	default 65536
+	depends on SDHC_SUNXI_DMA
+	help
+	  Size of the DMA bounce buffer used for data transfers.
+	  Must be at least as large as the maximum single request.
+	  Default 64KB matches the maximum single-descriptor size.

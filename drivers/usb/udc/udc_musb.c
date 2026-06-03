@@ -84,7 +84,7 @@ static void udc_musb_ep0_setup_work(struct k_work *item)
 	udc_setup_received(dev, priv->ep0_setup_buf);
 }
 
-static void udc_musb_ep0_setup_cb(const struct musb_dev *musb,
+static void udc_musb_ep0_setup_cb(struct musb_dev *musb,
 				  const void *setup_data)
 {
 	const struct device *dev = musb->user_data;
@@ -105,7 +105,7 @@ static void udc_musb_ep0_setup_cb(const struct musb_dev *musb,
 	k_work_submit_to_queue(udc_get_work_q(), &priv->ep0_setup_work);
 }
 
-static void udc_musb_tx_done_cb(const struct musb_dev *musb, uint8_t ep)
+static void udc_musb_tx_done_cb(struct musb_dev *musb, uint8_t ep)
 {
 	const struct device *dev = musb->user_data;
 	struct udc_ep_config *ep_cfg;
@@ -146,7 +146,7 @@ static void udc_musb_tx_done_cb(const struct musb_dev *musb, uint8_t ep)
 	}
 }
 
-static void udc_musb_rx_ready_cb(const struct musb_dev *musb, uint8_t ep,
+static void udc_musb_rx_ready_cb(struct musb_dev *musb, uint8_t ep,
 				 uint16_t len)
 {
 	const struct device *dev = musb->user_data;
@@ -168,7 +168,7 @@ static void udc_musb_rx_ready_cb(const struct musb_dev *musb, uint8_t ep,
 	}
 }
 
-static void udc_musb_bus_event_cb(const struct musb_dev *musb,
+static void udc_musb_bus_event_cb(struct musb_dev *musb,
 				  enum musb_bus_event event)
 {
 	static const char * const names[] = {

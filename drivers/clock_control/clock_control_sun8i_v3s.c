@@ -92,12 +92,19 @@ struct sun8i_ccu_data {
 
 static int _sun8i_set_clk_cpu(const struct device *dev, const struct sun8i_clock_info *info, void *data);
 static int _sun8i_set_clk_spi0(const struct device *dev, const struct sun8i_clock_info *info, void *data);
+static int _sun8i_set_clk_mmc(const struct device *dev, const struct sun8i_clock_info *info, void *data);
 
 static const struct sun8i_clock_info sun8i_v3s_clock_info[] = {
 	CLK_PROP(CLK_CPU, 0, _sun8i_set_clk_cpu),
-	CLK_PROP(CLK_MMC0, 0x88, 0),
-	CLK_PROP(CLK_MMC1, 0x8c, 0),
-	CLK_PROP(CLK_MMC2, 0x90, 0),
+	CLK_PROP(CLK_MMC0, 0x88, _sun8i_set_clk_mmc),
+	CLK_PROP(CLK_MMC0_SAMPLE, 0x88, _sun8i_set_clk_mmc),
+	CLK_PROP(CLK_MMC0_OUTPUT, 0x88, _sun8i_set_clk_mmc),
+	CLK_PROP(CLK_MMC1, 0x8c, _sun8i_set_clk_mmc),
+	CLK_PROP(CLK_MMC1_SAMPLE, 0x8c, _sun8i_set_clk_mmc),
+	CLK_PROP(CLK_MMC1_OUTPUT, 0x8c, _sun8i_set_clk_mmc),
+	CLK_PROP(CLK_MMC2, 0x90, _sun8i_set_clk_mmc),
+	CLK_PROP(CLK_MMC2_SAMPLE, 0x90, _sun8i_set_clk_mmc),
+	CLK_PROP(CLK_MMC2_OUTPUT, 0x90, _sun8i_set_clk_mmc),
 	CLK_PROP(CLK_CE, 0x9c, 0),
 	CLK_PROP(CLK_SPI0, 0xa0, _sun8i_set_clk_spi0),
 };
@@ -132,38 +139,60 @@ static const struct sun8i_clock_gate_info sun8i_clock_gate_info[] = {
 	CLK_GATE(CLK_USB_OHCI0, 0xcc, 16),
 };
 
+/*
+ * Module clock enable/disable: use bit 31 (CLK_GATE) at the clock register.
+ * Gate clocks use a per-bit offset in gating registers.
+ */
+#define MOD_CLK_GATE	BIT(31)
+
 static int sun8i_clock_on(const struct device *dev, clock_control_subsys_t sys)
 {
 	const struct sun8i_ccu_config *config = dev->config;
 	struct sun8i_ccu_data *data = dev->data;
-	const struct sun8i_clock_gate_info *info = data->clock_gate_info;
 	uint32_t clk_id = (uint32_t)sys;
+	uint32_t offset = 0;
+	uint32_t bit = 0;
 	bool found = false;
 	int i;
 	uint32_t regval;
 	k_spinlock_key_t key;
 
+	/* Search gate clocks (CLK_GATE) first */
+	const struct sun8i_clock_gate_info *gate = data->clock_gate_info;
 
-	for (i = 0; i < data->nb_clock_gate_info; i++, info++)
-	{
-		if (info->id == clk_id)
-		{
+	for (i = 0; i < data->nb_clock_gate_info; i++, gate++) {
+		if (gate->id == clk_id) {
+			offset = gate->offset;
+			bit = gate->bit;
 			found = true;
 			break;
 		}
 	}
 
-	if (!found)
+	/* If not a gate clock, search module clocks (CLK_PROP) */
+	if (!found) {
+		const struct sun8i_clock_info *mod = data->clock_info;
+
+		for (i = 0; i < data->nb_clock_info; i++, mod++) {
+			if (mod->id == clk_id) {
+				offset = mod->offset;
+				bit = 31; /* MOD_CLK_GATE */
+				found = true;
+				break;
+			}
+		}
+	}
+
+	if (!found) {
 		return -EINVAL;
+	}
 
 	key = k_spin_lock(&data->lock);
-	regval = sys_read32(config->base + info->offset);
-	regval |= BIT(info->bit);
-	sys_write32(regval, config->base + info->offset);
-	LOG_DBG("clk_on: base=0x%lx off=0x%x bit=%u val=0x%08x",
-		(unsigned long)config->base,
-		info->offset, info->bit,
-		sys_read32(config->base + info->offset));
+	regval = sys_read32(config->base + offset);
+	regval |= BIT(bit);
+	sys_write32(regval, config->base + offset);
+	LOG_DBG("clk_on: off=0x%x bit=%u val=0x%08x",
+		offset, bit, sys_read32(config->base + offset));
 	k_spin_unlock(&data->lock, key);
 
 	return 0;
@@ -173,29 +202,48 @@ static int sun8i_clock_off(const struct device *dev, clock_control_subsys_t sys)
 {
 	const struct sun8i_ccu_config *config = dev->config;
 	struct sun8i_ccu_data *data = dev->data;
-	const struct sun8i_clock_gate_info *info = data->clock_gate_info;
 	uint32_t clk_id = (uint32_t)sys;
+	uint32_t offset = 0;
+	uint32_t bit = 0;
 	bool found = false;
-	k_spinlock_key_t key;
-	uint32_t regval;
 	int i;
+	uint32_t regval;
+	k_spinlock_key_t key;
 
-	for (i = 0; i < data->nb_clock_gate_info; i++, info++)
-	{
-		if (info->id == clk_id)
-		{
+	/* Search gate clocks first */
+	const struct sun8i_clock_gate_info *gate = data->clock_gate_info;
+
+	for (i = 0; i < data->nb_clock_gate_info; i++, gate++) {
+		if (gate->id == clk_id) {
+			offset = gate->offset;
+			bit = gate->bit;
 			found = true;
 			break;
 		}
 	}
 
-	if (!found)
+	/* If not a gate clock, search module clocks */
+	if (!found) {
+		const struct sun8i_clock_info *mod = data->clock_info;
+
+		for (i = 0; i < data->nb_clock_info; i++, mod++) {
+			if (mod->id == clk_id) {
+				offset = mod->offset;
+				bit = 31;
+				found = true;
+				break;
+			}
+		}
+	}
+
+	if (!found) {
 		return -EINVAL;
+	}
 
 	key = k_spin_lock(&data->lock);
-	regval = sys_read32(config->base + info->offset);
-	regval &= ~BIT(info->bit);
-	sys_write32(regval, config->base + info->offset);
+	regval = sys_read32(config->base + offset);
+	regval &= ~BIT(bit);
+	sys_write32(regval, config->base + offset);
 	k_spin_unlock(&data->lock, key);
 
 	return 0;
@@ -422,6 +470,117 @@ static int _sun8i_set_clk_spi0(const struct device *dev,
 	return 0;
 }
 
+/*
+ * MMC module clock (CCU SDMMCx_CLK register):
+ *   bit 31:       SCLK_GATING (1 = clock enabled)
+ *   bits 25:24:   CLK_SRC_SEL (00=OSC24M, 01=PLL_PERIPH0, 10=PLL_PERIPH1)
+ *   bits 22:20:   SAMPLE_CLK_PHASE_CTR (0..7)
+ *   bits 17:16:   CLK_DIV_RATIO_N (00=/1, 01=/2, 10=/4, 11=/8)
+ *   bits 10:8:    OUTPUT_CLK_PHASE_CTR (0..7)
+ *   bits 3:0:     CLK_DIV_RATIO_M (divided by m+1, range 1..16)
+ *
+ *   SCLK = Clock_Source / (2^N) / (M+1)
+ *   Max SCLK = 200 MHz
+ *
+ * The MMC controller has its own CLKCR divider for the card clock:
+ *   card_clock = SCLK / (2 * (CLKCR_div + 1))
+ */
+#define MMC_CLK_GATE_BIT		BIT(31)
+#define MMC_CLK_SRC_SHIFT		24
+#define MMC_CLK_SRC_HOSC		0	/* OSC24M  24 MHz */
+#define MMC_CLK_SRC_PLL_PERIPH0	1	/* PLL_PERIPH0 600 MHz */
+#define MMC_CLK_SRC_PLL_PERIPH1	2	/* PLL_PERIPH1 600 MHz */
+#define MMC_CLK_N_SHIFT		16
+#define MMC_CLK_M_SHIFT		0
+#define MMC_CLK_MAX_OUTPUT		200000000U
+
+struct mmc_clk_parent {
+	uint32_t src;	/* CLK_SRC_SEL value */
+	uint32_t freq;	/* Parent frequency in Hz */
+};
+
+static const struct mmc_clk_parent mmc_parents[] = {
+	{ MMC_CLK_SRC_HOSC,		24000000 },
+	{ MMC_CLK_SRC_PLL_PERIPH0,	600000000 },
+	{ MMC_CLK_SRC_PLL_PERIPH1,	600000000 },
+};
+
+static int _sun8i_set_clk_mmc(const struct device *dev,
+			      const struct sun8i_clock_info *info, void *data)
+{
+	const struct sun8i_ccu_config *ccu_cfg = dev->config;
+	uint32_t target_freq = (uint32_t)(uintptr_t)data;
+	uint32_t reg, best_src, best_n, best_m, best_actual, best_diff;
+	uint32_t actual, diff, after_n;
+	int s, n, m;
+
+	if (target_freq == 0) {
+		/* No frequency specified: enable with HOSC 24 MHz, divider /1 */
+		reg = MMC_CLK_GATE_BIT;
+		sys_write32(reg, ccu_cfg->base + info->offset);
+		return 0;
+	}
+
+	/* Clamp to maximum output */
+	if (target_freq > MMC_CLK_MAX_OUTPUT) {
+		target_freq = MMC_CLK_MAX_OUTPUT;
+	}
+
+	/* Search all source/N/M combinations for closest match */
+	best_src = MMC_CLK_SRC_HOSC;
+	best_n = 0;
+	best_m = 0;
+	best_actual = 0;
+	best_diff = UINT32_MAX;
+
+	for (s = 0; s < (int)ARRAY_SIZE(mmc_parents); s++) {
+		uint32_t parent = mmc_parents[s].freq;
+
+		for (n = 0; n <= 3; n++) {
+			after_n = parent >> n;
+			if (after_n == 0) {
+				continue;
+			}
+			for (m = 0; m <= 15; m++) {
+				actual = after_n / (m + 1);
+				if (actual == 0 || actual > MMC_CLK_MAX_OUTPUT) {
+					continue;
+				}
+				diff = (actual > target_freq) ?
+					(actual - target_freq) :
+					(target_freq - actual);
+				if (diff < best_diff) {
+					best_diff = diff;
+					best_actual = actual;
+					best_src = mmc_parents[s].src;
+					best_n = n;
+					best_m = m;
+				}
+			}
+		}
+	}
+
+	if (best_actual == 0) {
+		/* Fall back to HOSC /1 */
+		reg = MMC_CLK_GATE_BIT;
+		sys_write32(reg, ccu_cfg->base + info->offset);
+		LOG_WRN("MMC clk: no valid divider for %u Hz, fallback to HOSC",
+			target_freq);
+		return -EINVAL;
+	}
+
+	reg = (best_src << MMC_CLK_SRC_SHIFT) |
+	      (best_n << MMC_CLK_N_SHIFT) |
+	      (best_m << MMC_CLK_M_SHIFT) |
+	      MMC_CLK_GATE_BIT;
+
+	LOG_DBG("MMC clk: target=%u src=%u n=%u m=%u actual=%u reg=0x%08x",
+		target_freq, best_src, best_n, best_m, best_actual, reg);
+
+	sys_write32(reg, ccu_cfg->base + info->offset);
+	return 0;
+}
+
 static int sun8i_set_clk_cpu(const struct device *dev,
 				 clock_control_subsys_t sys,
 				 clock_control_subsys_rate_t rate)
@@ -450,9 +609,61 @@ static int sun8i_set_clk_cpu(const struct device *dev,
 	return -EOPNOTSUPP;
 }
 
+static int sun8i_get_rate(const struct device *dev,
+			  clock_control_subsys_t sys,
+			  uint32_t *rate)
+{
+	const struct sun8i_ccu_config *ccu_cfg = dev->config;
+	struct sun8i_ccu_data *ccu_data = dev->data;
+	const struct sun8i_clock_info *info = ccu_data->clock_info;
+	uint32_t clk_id = (uint32_t)sys;
+	int i;
+	bool found = false;
+
+	for (i = 0; i < (int)ccu_data->nb_clock_info; i++, info++) {
+		if (info->id == clk_id) {
+			found = true;
+			break;
+		}
+	}
+
+	if (!found) {
+		return -EINVAL;
+	}
+
+	/* MMC clocks: read register and compute output rate */
+	if (info->set == _sun8i_set_clk_mmc) {
+		uint32_t reg = sys_read32(ccu_cfg->base + info->offset);
+		uint32_t src_sel = (reg >> MMC_CLK_SRC_SHIFT) & 0x3;
+		uint32_t n = (reg >> MMC_CLK_N_SHIFT) & 0x3;
+		uint32_t m = (reg >> MMC_CLK_M_SHIFT) & 0xf;
+		uint32_t parent_freq;
+
+		switch (src_sel) {
+		case MMC_CLK_SRC_HOSC:
+			parent_freq = 24000000;
+			break;
+		case MMC_CLK_SRC_PLL_PERIPH0:
+			parent_freq = 600000000;
+			break;
+		case MMC_CLK_SRC_PLL_PERIPH1:
+			parent_freq = 600000000;
+			break;
+		default:
+			return -EIO;
+		}
+
+		*rate = (parent_freq >> n) / (m + 1);
+		return 0;
+	}
+
+	return -ENOSYS;
+}
+
 DEVICE_API(clock_control, sun8i_clock_control_api) = {
 	.on = sun8i_clock_on,
 	.off = sun8i_clock_off,
+	.get_rate = sun8i_get_rate,
 	.set_rate = sun8i_set_clk_cpu,
 };
 

@@ -26,8 +26,18 @@ source "drivers/sdhc/Kconfig.sam_sdmmc"
 source "drivers/sdhc/Kconfig.sdhc_cdns"
 source "drivers/sdhc/Kconfig.spi"
 source "drivers/sdhc/Kconfig.stm32"
+source "drivers/sdhc/Kconfig.sunxi"
 source "drivers/sdhc/Kconfig.xlnx"
 # zephyr-keep-sorted-stop
+
+config SDHC_SHELL
+	bool "MMC/SD shell commands"
+	depends on SHELL
+	depends on SDMMC_STACK
+	help
+	  Register 'mmc' shell command with subcommands: init, info,
+	  list, read, write, erase. Provides U-Boot-like MMC/SD
+	  testing capability that works with any SDHC driver.
 
 config SDHC_INIT_PRIORITY
 	int "SDHC driver init priority"

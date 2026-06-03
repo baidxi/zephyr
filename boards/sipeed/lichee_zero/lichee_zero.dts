@@ -70,8 +70,19 @@
 		};
 
 		uart0_pins: uart0-pins {
-			pinmux = <SUN8I_V3S_PINMUX(PORT_F, 2, FUNC_PF_UART0)>,
-						<SUN8I_V3S_PINMUX(PORT_F, 4, FUNC_PF_UART0)>;
+			pinmux = <SUN8I_V3S_PINMUX(PORT_B, 8, FUNC_PB_UART0)>,
+						<SUN8I_V3S_PINMUX(PORT_B, 9, FUNC_PB_UART0)>;
+			drive-strength = <3>;
+			allwinner,pull = "pull_up";
+		};
+
+		mmc0_pins: mmc0-pins {
+			pinmux = <SUN8I_V3S_PINMUX(PORT_F, 0, FUNC_PF_SDC0)>,
+				 <SUN8I_V3S_PINMUX(PORT_F, 1, FUNC_PF_SDC0)>,
+				 <SUN8I_V3S_PINMUX(PORT_F, 2, FUNC_PF_SDC0)>,
+				 <SUN8I_V3S_PINMUX(PORT_F, 3, FUNC_PF_SDC0)>,
+				 <SUN8I_V3S_PINMUX(PORT_F, 4, FUNC_PF_SDC0)>,
+				 <SUN8I_V3S_PINMUX(PORT_F, 5, FUNC_PF_SDC0)>;
 			drive-strength = <3>;
 			allwinner,pull = "pull_up";
 		};
@@ -110,5 +121,11 @@
 };
 
 &usbotg {
+	status = "okay";
+};
+
+&mmc0 {
+	pinctrl-0 = <&mmc0_pins>;
+	pinctrl-names = "default";
 	status = "okay";
 };

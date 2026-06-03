@@ -27,6 +27,9 @@ static const struct arm_mmu_region mmu_regions[] = {
 	MMU_REGION_FLAT_ENTRY("phy_ctl", 0x01c19400, 0x2c, MT_DEVICE | MPERM_R | MPERM_W),
 	MMU_REGION_FLAT_ENTRY("pmu0", 0x01c1a800, 0x04, MT_DEVICE | MPERM_R | MPERM_W),
 	MMU_REGION_FLAT_ENTRY("usb_hci0", 0x01c1a000, 0x100, MT_DEVICE | MPERM_R | MPERM_W),
+	MMU_REGION_FLAT_ENTRY("sdhc0", 0x01c0f000, 0x400, MT_DEVICE | MPERM_R | MPERM_W),
+	MMU_REGION_FLAT_ENTRY("sdhc1", 0x01C10000, 0x400, MT_DEVICE | MPERM_R | MPERM_W),
+	MMU_REGION_FLAT_ENTRY("sdhc2", 0x01C11000, 0x400, MT_DEVICE | MPERM_R | MPERM_W)
 };
 
 const struct arm_mmu_config mmu_config = {
