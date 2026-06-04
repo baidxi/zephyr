@@ -1,0 +1,46 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner sun8i V3s Crypto Engine (Security System / SS).
+  Provides hardware-accelerated AES in ECB and CBC modes
+  with 128/192/256-bit keys.
+
+compatible: "allwinner,sun8i-v3s-crypto"
+
+include:
+  - name: base.yaml
+  - name: reset-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    type: phandle-array
+    required: true
+
+  clock-names:
+    type: string-array
+    required: true
+
+  resets:
+    required: true
+
+  reset-names:
+    type: string-array
+    required: true
+
+  dmas:
+    type: phandle-array
+    description: |
+      Optional DMA specifiers for RX and TX. The V3s crypto engine
+      uses DRQ 16 for both directions.
+
+  dma-names:
+    type: string-array
+    description: |
+      Required if dmas property exists. Should be "rx" and "tx".

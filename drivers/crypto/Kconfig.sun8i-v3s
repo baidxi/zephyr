@@ -1,0 +1,18 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@mail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config CRYPTO_SUN8I_V3S
+	bool "Allwinner Sun8i V3s Crypto Engine (Security System)"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_CRYPTO_ENABLED
+	help
+	  Enable the Allwinner Sun8i V3s Crypto Engine driver providing
+	  hardware-accelerated AES in ECB and CBC modes with
+	  128/192/256-bit keys.
+
+config CRYPTO_SUN8I_V3S_MAX_SESSION
+	int "Maximum concurrent crypto sessions"
+	default 2
+	depends on CRYPTO_SUN8I_V3S
+	help
+	  Maximum number of concurrent cipher sessions.

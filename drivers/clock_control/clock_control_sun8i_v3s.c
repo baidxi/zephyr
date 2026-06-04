@@ -44,6 +44,44 @@ LOG_MODULE_REGISTER(ccu, CONFIG_LOG_DEFAULT_LEVEL);
 #define CLK_GATE_BIT(clk_id)      ((clk_id) & 0x1F)
 #define CLK_GATE_REG(clk_id)      (((clk_id) >> 5) & 0x3)
 
+
+#define MMC_CLK_GATE_BIT		BIT(31)
+#define MMC_CLK_SRC_SHIFT		24
+#define MMC_CLK_SRC_HOSC		0	/* OSC24M  24 MHz */
+#define MMC_CLK_SRC_PLL_PERIPH0	1	/* PLL_PERIPH0 600 MHz */
+#define MMC_CLK_SRC_PLL_PERIPH1	2	/* PLL_PERIPH1 600 MHz */
+#define MMC_CLK_N_SHIFT		16
+#define MMC_CLK_M_SHIFT		0
+#define MMC_CLK_MAX_OUTPUT		200000000U
+
+#define CE_CLK_SRC_SHIFT	24
+#define CE_CLK_SRC_MASK		GENMASK(26, 24)
+#define CE_CLK_SRC_HOSC		0
+#define CE_CLK_SRC_PLL_PERIPH0	1
+#define CE_CLK_SRC_PLL_PERIPH1	2
+#define CE_CLK_M_SHIFT		16
+#define CE_CLK_M_MASK		GENMASK(17, 16)
+#define CE_CLK_N_SHIFT		0
+#define CE_CLK_N_MASK		GENMASK(1, 0)
+#define CE_CLK_GATE		BIT(31)
+#define CE_CLK_MAX_OUTPUT	150000000U
+
+#define SPI0_CLK_SRC_SHIFT	24
+#define SPI0_CLK_SRC_MASK	GENMASK(26, 24)
+#define SPI0_CLK_SRC_HOSC	0
+#define SPI0_CLK_M_SHIFT	16
+#define SPI0_CLK_M_MASK		GENMASK(17, 16)
+#define SPI0_CLK_N_SHIFT	0
+#define SPI0_CLK_N_MASK		GENMASK(1, 0)
+#define SPI0_CLK_GATE		BIT(31)
+#define SPI0_CLK_PLL_BYPASS	BIT(30)  /* Bypass PLL lock when using OSC24M */
+
+
+struct mmc_clk_parent {
+	uint32_t src;	/* CLK_SRC_SEL value */
+	uint32_t freq;	/* Parent frequency in Hz */
+};
+
 struct sun8i_osc_freq_config {
 	uint32_t freq;
 	uint8_t id;
@@ -93,6 +131,7 @@ struct sun8i_ccu_data {
 static int _sun8i_set_clk_cpu(const struct device *dev, const struct sun8i_clock_info *info, void *data);
 static int _sun8i_set_clk_spi0(const struct device *dev, const struct sun8i_clock_info *info, void *data);
 static int _sun8i_set_clk_mmc(const struct device *dev, const struct sun8i_clock_info *info, void *data);
+static int _sun8i_set_clk_ce(const struct device *dev, const struct sun8i_clock_info *info, void *data);
 
 static const struct sun8i_clock_info sun8i_v3s_clock_info[] = {
 	CLK_PROP(CLK_CPU, 0, _sun8i_set_clk_cpu),
@@ -105,7 +144,7 @@ static const struct sun8i_clock_info sun8i_v3s_clock_info[] = {
 	CLK_PROP(CLK_MMC2, 0x90, _sun8i_set_clk_mmc),
 	CLK_PROP(CLK_MMC2_SAMPLE, 0x90, _sun8i_set_clk_mmc),
 	CLK_PROP(CLK_MMC2_OUTPUT, 0x90, _sun8i_set_clk_mmc),
-	CLK_PROP(CLK_CE, 0x9c, 0),
+	CLK_PROP(CLK_CE, 0x9c, _sun8i_set_clk_ce),
 	CLK_PROP(CLK_SPI0, 0xa0, _sun8i_set_clk_spi0),
 };
 
@@ -379,28 +418,6 @@ static int _sun8i_set_clk_cpu(const struct device *dev, const struct sun8i_clock
 	return -EINVAL;
 }
 
-/*
- * SPI0_CLK register (CCU offset 0xA0):
- *   bit 31:      Gating (1 = clock enabled)
- *   bits 26:24:  Clock source (000=HOSC, 001=PLL_PERIPH0, 010=PLL_PERIPH1)
- *   bits 17:16:  Pre-divider M (00=/1, 01=/2, 10=/4, 11=/8)
- *   bits 1:0:    Divider N (00=/1, 01=/2, 10=/4, 11=/8)
- *   f_out = f_parent / (2^M * 2^N)
- *
- * The SPI driver passes a struct sun8i_spi_clk_config with the parent
- * clock frequency and the desired output frequency.
- */
-
-#define SPI0_CLK_SRC_SHIFT	24
-#define SPI0_CLK_SRC_MASK	GENMASK(26, 24)
-#define SPI0_CLK_SRC_HOSC	0
-#define SPI0_CLK_M_SHIFT	16
-#define SPI0_CLK_M_MASK		GENMASK(17, 16)
-#define SPI0_CLK_N_SHIFT	0
-#define SPI0_CLK_N_MASK		GENMASK(1, 0)
-#define SPI0_CLK_GATE		BIT(31)
-#define SPI0_CLK_PLL_BYPASS	BIT(30)  /* Bypass PLL lock when using OSC24M */
-
 static int _sun8i_set_clk_spi0(const struct device *dev,
 				const struct sun8i_clock_info *info, void *data)
 {
@@ -470,34 +487,88 @@ static int _sun8i_set_clk_spi0(const struct device *dev,
 	return 0;
 }
 
-/*
- * MMC module clock (CCU SDMMCx_CLK register):
- *   bit 31:       SCLK_GATING (1 = clock enabled)
- *   bits 25:24:   CLK_SRC_SEL (00=OSC24M, 01=PLL_PERIPH0, 10=PLL_PERIPH1)
- *   bits 22:20:   SAMPLE_CLK_PHASE_CTR (0..7)
- *   bits 17:16:   CLK_DIV_RATIO_N (00=/1, 01=/2, 10=/4, 11=/8)
- *   bits 10:8:    OUTPUT_CLK_PHASE_CTR (0..7)
- *   bits 3:0:     CLK_DIV_RATIO_M (divided by m+1, range 1..16)
- *
- *   SCLK = Clock_Source / (2^N) / (M+1)
- *   Max SCLK = 200 MHz
- *
- * The MMC controller has its own CLKCR divider for the card clock:
- *   card_clock = SCLK / (2 * (CLKCR_div + 1))
- */
-#define MMC_CLK_GATE_BIT		BIT(31)
-#define MMC_CLK_SRC_SHIFT		24
-#define MMC_CLK_SRC_HOSC		0	/* OSC24M  24 MHz */
-#define MMC_CLK_SRC_PLL_PERIPH0	1	/* PLL_PERIPH0 600 MHz */
-#define MMC_CLK_SRC_PLL_PERIPH1	2	/* PLL_PERIPH1 600 MHz */
-#define MMC_CLK_N_SHIFT		16
-#define MMC_CLK_M_SHIFT		0
-#define MMC_CLK_MAX_OUTPUT		200000000U
+static int _sun8i_set_clk_ce(const struct device *dev,
+			     const struct sun8i_clock_info *info, void *data)
+{
+	const struct sun8i_ccu_config *ccu_cfg = dev->config;
+	uint32_t target_freq = (uint32_t)(uintptr_t)data;
+	uint32_t reg, best_src, best_m, best_n, best_actual, best_diff;
+	uint32_t actual, diff, after_m;
+	int s, m, n;
 
-struct mmc_clk_parent {
-	uint32_t src;	/* CLK_SRC_SEL value */
-	uint32_t freq;	/* Parent frequency in Hz */
-};
+	struct {
+		uint32_t src;
+		uint32_t freq;
+	} static const ce_parents[] = {
+		{ CE_CLK_SRC_HOSC,        24000000 },
+		{ CE_CLK_SRC_PLL_PERIPH0, 600000000 },
+		{ CE_CLK_SRC_PLL_PERIPH1, 600000000 },
+	};
+
+	if (target_freq == 0) {
+		/* No frequency specified: enable with HOSC 24 MHz, divider /1 */
+		reg = (CE_CLK_SRC_HOSC << CE_CLK_SRC_SHIFT) | CE_CLK_GATE;
+		sys_write32(reg, ccu_cfg->base + info->offset);
+		return 0;
+	}
+
+	/* Clamp to maximum output */
+	if (target_freq > CE_CLK_MAX_OUTPUT) {
+		target_freq = CE_CLK_MAX_OUTPUT;
+	}
+
+	best_src = CE_CLK_SRC_HOSC;
+	best_m = 0;
+	best_n = 0;
+	best_actual = 0;
+	best_diff = UINT32_MAX;
+
+	for (s = 0; s < (int)ARRAY_SIZE(ce_parents); s++) {
+		uint32_t parent = ce_parents[s].freq;
+
+		for (m = 0; m <= 3; m++) {
+			after_m = parent >> m;
+			if (after_m == 0) {
+				continue;
+			}
+			for (n = 0; n <= 3; n++) {
+				actual = after_m >> n;
+				if (actual == 0 || actual > CE_CLK_MAX_OUTPUT) {
+					continue;
+				}
+				diff = (actual > target_freq) ?
+					(actual - target_freq) :
+					(target_freq - actual);
+				if (diff < best_diff) {
+					best_diff = diff;
+					best_actual = actual;
+					best_src = ce_parents[s].src;
+					best_m = m;
+					best_n = n;
+				}
+			}
+		}
+	}
+
+	if (best_actual == 0) {
+		reg = (CE_CLK_SRC_HOSC << CE_CLK_SRC_SHIFT) | CE_CLK_GATE;
+		sys_write32(reg, ccu_cfg->base + info->offset);
+		LOG_WRN("CE clk: no valid divider for %u Hz, fallback to HOSC",
+			target_freq);
+		return -EINVAL;
+	}
+
+	reg = (best_src << CE_CLK_SRC_SHIFT) |
+	      (best_m << CE_CLK_M_SHIFT) |
+	      (best_n << CE_CLK_N_SHIFT) |
+	      CE_CLK_GATE;
+
+	LOG_DBG("CE clk: target=%u src=%u m=%u n=%u actual=%u reg=0x%08x",
+		target_freq, best_src, best_m, best_n, best_actual, reg);
+
+	sys_write32(reg, ccu_cfg->base + info->offset);
+	return 0;
+}
 
 static const struct mmc_clk_parent mmc_parents[] = {
 	{ MMC_CLK_SRC_HOSC,		24000000 },

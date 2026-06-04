@@ -74,6 +74,7 @@ source "drivers/crypto/Kconfig.sf32lb"
 source "drivers/crypto/Kconfig.si32"
 source "drivers/crypto/Kconfig.smartbond"
 source "drivers/crypto/Kconfig.stm32"
+source "drivers/crypto/Kconfig.sun8i-v3s"
 # zephyr-keep-sorted-stop
 
 endif # CRYPTO

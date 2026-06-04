@@ -366,6 +366,20 @@
 			status = "disabled";
 		};
 
+		crypto: crypto@1c15000 {
+			compatible = "allwinner,sun8i-v3s-crypto";
+			reg = <0x01c15000 0x1000>;
+			interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			clocks = <&ccu CLK_BUS_CE>, <&ccu CLK_CE>;
+			clock-names = "ahb", "mod";
+			resets = <&reset RST_BUS_CE>;
+			reset-names = "ahb";
+			dmas = <&dma SUN8I_V3S_DMA_DRQ_CE>,
+			       <&dma SUN8I_V3S_DMA_DRQ_CE>;
+			dma-names = "rx", "tx";
+			status = "disabled";
+		};
+
 		usbotg: usb@1c19000 {
 			compatible = "allwinner,sun8i-v3s-musb";
 			reg = <0x01c19000 0x0400>;
