@@ -1,0 +1,17 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config ENTROPY_SUN8I_V3S
+	bool "Allwinner Sun8i V3s PRNG entropy generator"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_RNG_ENABLED
+	select ENTROPY_HAS_DRIVER
+	help
+	  Enable the Allwinner Sun8i V3s PRNG driver providing hardware
+	  entropy based on the 160-bit PRNG inside the Crypto Engine
+	  (Security System).
+
+config ENTROPY_INIT_PRIORITY
+	int
+	default 56
+	depends on ENTROPY_SUN8I_V3S

@@ -378,6 +378,11 @@
 			       <&dma SUN8I_V3S_DMA_DRQ_CE>;
 			dma-names = "rx", "tx";
 			status = "disabled";
+
+			rng: rng {
+				compatible = "allwinner,sun8i-v3s-rng";
+				status = "disabled";
+			};
 		};
 
 		usbotg: usb@1c19000 {

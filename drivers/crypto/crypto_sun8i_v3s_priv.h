@@ -48,6 +48,14 @@
 #define SS_CBC            (1 << 12)
 #define SS_CTS            (3 << 12)
 
+/* CE_METHOD field values - bits 4-6 */
+#define SS_OP_AES         (0 << 4)
+#define SS_OP_DES         (1 << 4)
+#define SS_OP_3DES        (2 << 4)
+#define SS_OP_SHA1        (3 << 4)
+#define SS_OP_MD5         (4 << 4)
+#define SS_OP_PRNG        (5 << 4)
+
 /* Key size for AES - bits 8-9 */
 #define SS_AES_128BITS    (0 << 8)
 #define SS_AES_192BITS    (1 << 8)
@@ -57,11 +65,12 @@
 #define SS_ENCRYPTION     (0 << 7)
 #define SS_DECRYPTION     (1 << 7)
 
-/* Method - bits 4-6 */
-#define SS_OP_AES         (0 << 4)
-
 /* Data end - bit 2 */
 #define SS_DATA_END       (1 << 2)
+
+/* PRNG control bits */
+#define SS_PRNG_START     (1 << 1)   /* Write 1 to start, auto-clears */
+#define SS_PRNG_MODE      (1 << 15)  /* 0 = one-shot, 1 = continue */
 
 /* Enable - bit 0 */
 #define SS_ENABLED        (1 << 0)

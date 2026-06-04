@@ -14,12 +14,6 @@ module = ENTROPY
 module-str = entropy
 source "subsys/logging/Kconfig.template.log_config"
 
-config ENTROPY_INIT_PRIORITY
-	int "Entropy driver init priority"
-	default KERNEL_INIT_PRIORITY_DEVICE
-	help
-	  Entropy driver device initialization priority.
-
 # zephyr-keep-sorted-start
 source "drivers/entropy/Kconfig.ambiq"
 source "drivers/entropy/Kconfig.arm64"
@@ -53,10 +47,17 @@ source "drivers/entropy/Kconfig.sf32lb"
 source "drivers/entropy/Kconfig.siwx91x"
 source "drivers/entropy/Kconfig.smartbond"
 source "drivers/entropy/Kconfig.stm32"
+source "drivers/entropy/Kconfig.sun8i-v3s"
 source "drivers/entropy/Kconfig.sy1xx"
 source "drivers/entropy/Kconfig.virtio"
 source "drivers/entropy/Kconfig.wch"
 # zephyr-keep-sorted-stop
+
+config ENTROPY_INIT_PRIORITY
+	int "Entropy driver init priority"
+	default KERNEL_INIT_PRIORITY_DEVICE
+	help
+	  Entropy driver device initialization priority.
 
 config ENTROPY_HAS_DRIVER
 	bool

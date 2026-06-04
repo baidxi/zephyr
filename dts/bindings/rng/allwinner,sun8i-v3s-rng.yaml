@@ -1,0 +1,11 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner sun8i V3s PRNG (Pseudo Random Number Generator).
+  This is a sub-block of the Crypto Engine (Security System) providing
+  160-bit hardware PRNG with 175-bit seed.
+
+compatible: "allwinner,sun8i-v3s-rng"
+
+include: base.yaml

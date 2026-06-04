@@ -51,6 +51,7 @@ zephyr_library_sources_ifdef(CONFIG_ENTROPY_SY1XX_TRNG entropy_sy1xx_trng.c)
 zephyr_library_sources_ifdef(CONFIG_ENTROPY_TELINK_B91_TRNG entropy_b91_trng.c)
 zephyr_library_sources_ifdef(CONFIG_ENTROPY_VIRTIO entropy_virtio.c)
 zephyr_library_sources_ifdef(CONFIG_ENTROPY_WCH_RNG entropy_wch.c)
+zephyr_library_sources_ifdef(CONFIG_ENTROPY_SUN8I_V3S entropy_sun8i_v3s.c)
 # zephyr-keep-sorted-stop
 
 zephyr_library_link_libraries_ifdef(CONFIG_BUILD_WITH_TFM tfm_api)
