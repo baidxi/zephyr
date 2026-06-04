@@ -8,7 +8,9 @@
 #include <zephyr/logging/log_ctrl.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_internal.h>
+#include <zephyr/logging/log_backend_ram.h>
 #include <zephyr/sys/iterable_sections.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define FRONTEND_NAME frontend
@@ -457,6 +459,44 @@ static int cmd_log_mem(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
+#if defined(CONFIG_LOG_BACKEND_RAM)
+static int cmd_log_show(const struct shell *sh, size_t argc, char **argv)
+{
+	size_t max_lines = (size_t)-1;
+
+	if (!log_backend_ram_is_active()) {
+		shell_warn(sh, "RAM log backend is not active. "
+			   "Enable with 'log backend ram go'.");
+		return -ENOEXEC;
+	}
+
+	if (argc > 1) {
+		char *endptr;
+
+		max_lines = strtoul(argv[1], &endptr, 0);
+		if (*endptr != '\0') {
+			shell_error(sh, "Invalid count: %s", argv[1]);
+			return -EINVAL;
+		}
+	}
+
+	log_backend_ram_show(sh, max_lines);
+	return 0;
+}
+
+static int cmd_log_clean(const struct shell *sh, size_t argc, char **argv)
+{
+	if (!log_backend_ram_is_active()) {
+		shell_warn(sh, "RAM log backend is not active.");
+		return -ENOEXEC;
+	}
+
+	log_backend_ram_clean();
+	shell_print(sh, "RAM log buffer cleared.");
+	return 0;
+}
+#endif /* CONFIG_LOG_BACKEND_RAM */
+
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_log_backend,
 	SHELL_CMD_ARG(disable, &dsub_module_name,
 		  "'log disable <module_0> .. <module_n>' disables logs in "
@@ -528,6 +568,13 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		       cmd_log_self_status),
 	SHELL_COND_CMD(CONFIG_LOG_MODE_DEFERRED, mem, NULL, "Logger memory usage",
 		       cmd_log_mem),
+	SHELL_COND_CMD_ARG(CONFIG_LOG_BACKEND_RAM, show, NULL,
+			   "'log show [count]' displays buffered log messages "
+			   "from RAM backend.",
+			   cmd_log_show, 1, 1),
+	SHELL_COND_CMD(CONFIG_LOG_BACKEND_RAM, clean, NULL,
+		       "'log clean' clears the RAM log buffer.",
+		       cmd_log_clean),
 	SHELL_COND_CMD(CONFIG_LOG_FRONTEND, FRONTEND_NAME, &sub_log_backend,
 		"Frontend control", NULL),
 	SHELL_SUBCMD_SET_END);

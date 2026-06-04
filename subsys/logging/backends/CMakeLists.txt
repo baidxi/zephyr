@@ -86,6 +86,11 @@ zephyr_sources_ifdef(
 )
 
 zephyr_sources_ifdef(
+  CONFIG_LOG_BACKEND_RAM
+  log_backend_ram.c
+)
+
+zephyr_sources_ifdef(
   CONFIG_LOG_BACKEND_SEMIHOST
   log_backend_semihost.c
 )

@@ -1,0 +1,51 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+config LOG_BACKEND_RAM
+	bool "RAM log backend"
+	select LOG_OUTPUT
+	help
+	  Store formatted log messages in a RAM ring buffer for later
+	  retrieval via shell commands (log show, log clean).
+
+	  This backend is useful for debugging when no UART/RTT/network
+	  is available, or when you need to inspect recent logs after
+	  a connection has been lost. Log messages are stored as
+	  formatted text, identical to what would appear on a UART
+	  console.
+
+if LOG_BACKEND_RAM
+
+config LOG_BACKEND_RAM_BUF_SIZE
+	int "RAM log buffer size in bytes"
+	default 4096
+	range 256 65536
+	help
+	  Size of the ring buffer used to store formatted log output.
+
+	  This is separate from CONFIG_LOG_BUFFER_SIZE, which stores
+	  raw binary log_msg packets in deferred mode. Formatted text
+	  output is typically 1.5-3x larger than the raw binary package,
+	  so this buffer should be sized accordingly.
+
+config LOG_BACKEND_RAM_OUTPUT_BUF_SIZE
+	int "RAM backend internal scratch buffer size"
+	default 256
+	range 64 1024
+	help
+	  Internal formatting buffer for log_output. This is NOT the
+	  storage buffer where log messages are kept. It is used as a
+	  scratch buffer during message formatting.
+
+config LOG_BACKEND_RAM_AUTOSTART
+	bool "Auto-start RAM log backend"
+	default y
+	help
+	  Automatically enable RAM logging at boot. When disabled, use
+	  'log backend ram go' in shell to activate.
+
+backend = RAM
+backend-str = ram
+source "subsys/logging/Kconfig.template.log_format_config"
+
+endif # LOG_BACKEND_RAM
