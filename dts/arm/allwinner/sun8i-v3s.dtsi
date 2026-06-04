@@ -80,6 +80,12 @@
 			reg = <0x40000000 DT_SIZE_M(64)>;
 		};
 
+		syscon: system-control@1c00000 {
+			compatible = "syscon";
+			reg = <0x01c00000 0xd0>;
+			status = "okay";
+		};
+
 		ccu: clock-controller@1c20000 {
 			compatible = "allwinner,sun8i-v3s-ccu";
 			status = "okay";
@@ -369,6 +375,31 @@
 			resets = <&reset RST_BUS_OTG>;
 			num-bidir-endpoints = <5>;
 			status = "disabled";
+		};
+
+		emac: ethernet@1c30000 {
+			compatible = "allwinner,sun8i-v3s-emac";
+			reg = <0x01c30000 0x10000>;
+			interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			clocks = <&ccu CLK_BUS_EMAC>;
+			resets = <&reset RST_BUS_EMAC>;
+			allwinner,phy-addr = <1>;
+			phy-handle = <&int_mii_phy>;
+			phy-connection-type = "mii";
+			status = "disabled";
+
+			mdio: mdio {
+				compatible = "allwinner,sun8i-v3s-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				int_mii_phy: ethernet-phy@1 {
+						compatible = "ethernet-phy";
+						reg = <1>;
+						default-speeds = "10BASE Full-Duplex",
+								 "100BASE Full-Duplex";
+					};
+			};
 		};
 	};
 };

@@ -1,0 +1,15 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner Sun8i V3s EMAC MDIO controller
+
+compatible: "allwinner,sun8i-v3s-mdio"
+
+include:
+  - name: mdio-controller.yaml
+
+properties:
+  clock-frequency:
+    description: |
+      MDC clock frequency. The sun8i EMAC MDIO controller derives MDC from
+      the 24 MHz oscillator. The default MDC is 1.5 MHz (24 MHz / 16).

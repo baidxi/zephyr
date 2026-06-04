@@ -127,5 +127,19 @@
 &mmc0 {
 	pinctrl-0 = <&mmc0_pins>;
 	pinctrl-names = "default";
+	frequency = <DT_FREQ_M(100)>;
+	status = "okay";
+};
+
+&usbphy {
+	status = "okay";
+};
+
+&emac {
+	allwinner,leds-active-low;
+	status = "okay";
+};
+
+&mdio {
 	status = "okay";
 };

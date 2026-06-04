@@ -568,13 +568,16 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		       cmd_log_self_status),
 	SHELL_COND_CMD(CONFIG_LOG_MODE_DEFERRED, mem, NULL, "Logger memory usage",
 		       cmd_log_mem),
+#if defined(CONFIG_LOG_BACKEND_RAM)
 	SHELL_COND_CMD_ARG(CONFIG_LOG_BACKEND_RAM, show, NULL,
 			   "'log show [count]' displays buffered log messages "
 			   "from RAM backend.",
 			   cmd_log_show, 1, 1),
+
 	SHELL_COND_CMD(CONFIG_LOG_BACKEND_RAM, clean, NULL,
 		       "'log clean' clears the RAM log buffer.",
 		       cmd_log_clean),
+#endif
 	SHELL_COND_CMD(CONFIG_LOG_FRONTEND, FRONTEND_NAME, &sub_log_backend,
 		"Frontend control", NULL),
 	SHELL_SUBCMD_SET_END);

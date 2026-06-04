@@ -1,0 +1,36 @@
+# Allwinner V3s EMAC Ethernet driver configuration options
+
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig ETH_SUN8I_V3S_EMAC
+	bool "Allwinner V3s EMAC Ethernet driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_EMAC_ENABLED
+	depends on NET_L2_ETHERNET
+	select SYSCON
+	select MDIO
+	help
+	  Enable Allwinner V3s EMAC Ethernet driver.
+	  This driver supports the internal EPHY (10/100 MII) found on the
+	  Allwinner V3s (Lichee Zero) SoC.
+
+if ETH_SUN8I_V3S_EMAC
+
+config ETH_SUN8I_V3S_EMAC_TX_DESC_COUNT
+	int "Number of TX DMA descriptors"
+	default 8
+	range 2 64
+	help
+	  Number of transmit DMA descriptors in the ring buffer.
+	  Each descriptor can hold one Ethernet frame.
+
+config ETH_SUN8I_V3S_EMAC_RX_DESC_COUNT
+	int "Number of RX DMA descriptors"
+	default 8
+	range 2 64
+	help
+	  Number of receive DMA descriptors in the ring buffer.
+	  Each descriptor can hold one Ethernet frame.
+
+endif # ETH_SUN8I_V3S_EMAC

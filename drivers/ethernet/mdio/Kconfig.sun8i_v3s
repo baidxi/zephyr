@@ -1,0 +1,12 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config MDIO_SUN8I_V3S
+	bool "Allwinner Sun8i V3s EMAC MDIO driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_MDIO_ENABLED
+	depends on ETH_SUN8I_V3S_EMAC
+	help
+	  Enable MDIO support for the Allwinner Sun8i V3s EMAC controller.
+	  This driver provides Clause 22 MDIO bus access through the EMAC's
+	  built-in MII management registers.
