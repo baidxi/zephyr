@@ -15,3 +15,6 @@ supported:
   - i2c
   - usb
   - sdhc
+  - ethernet
+  - crypto
+  - rng
