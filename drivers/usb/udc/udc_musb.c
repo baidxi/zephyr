@@ -59,10 +59,6 @@ struct musb_dev *to_musb(const struct device *dev)
 	return &priv->musb;
 }
 
-/* =========================================================================
- * MUSB Callbacks
- * ========================================================================= */
-
 /*
  * Work handler for deferred EP0 SETUP processing.
  *
@@ -125,6 +121,11 @@ static void udc_musb_tx_done_cb(struct musb_dev *musb, uint8_t ep)
 		LOG_DBG("tx_done EP%u: dequeue buf=%p len=%u", ep, buf, buf->len);
 		udc_buf_get(ep_cfg);
 		udc_submit_ep_event(dev, buf, 0);
+	} else if (ep == 0) {
+		/* EP0 zero-data control transfers (SET_ADDRESS etc.)
+		 * handle TX inline without queuing a buffer.
+		 */
+		LOG_DBG("tx_done EP0: no buf (zero-data request)");
 	} else {
 		LOG_WRN("tx_done EP%u: no buf in queue!", ep);
 	}
@@ -200,20 +201,12 @@ static const struct musb_callbacks udc_musb_callbacks = {
 	.bus_event   = udc_musb_bus_event_cb,
 };
 
-/* =========================================================================
- * ISR
- * ========================================================================= */
-
 static void udc_musb_isr(const void *arg)
 {
 	LOG_DBG("ISR triggered");
 	musb_irq_handler(&((struct udc_musb_data *)
 			   udc_get_private(arg))->musb);
 }
-
-/* =========================================================================
- * UDC API
- * ========================================================================= */
 
 static int udc_musb_init(const struct device *dev)
 {
@@ -416,18 +409,18 @@ static int udc_musb_set_address(const struct device *dev, uint8_t addr)
 				  udc_get_private(dev))->musb;
 
 	/*
-	 * Defer FADDR write to the STATUSIN phase, matching Linux.
-	 * musb->set_address flag is checked in musb_handle_ep0()
-	 * at STATUSIN and musb_writeb(FADDR) is done there.
+	 * With addr_before_status = false, this function is called from
+	 * post_status_stage() AFTER the status phase has completed.
 	 *
-	 * If the UDC stack asserts addr_before_status capability,
-	 * we can write FADDR immediately.  But for correctness and
-	 * alignment with Linux, we use the deferred approach.
+	 * The ISR's STATUSIN handler (musb_handle_ep0) has already written
+	 * FADDR at the correct time — after the status-phase ZLP was sent
+	 * and ACK'd by the host.  This redundant write is a safety net.
 	 */
-	musb->set_address = true;
+	musb_set_address(musb, addr);
+	musb->set_address = false;
 	musb->address = addr;
 
-	LOG_DBG("SET_ADDRESS: addr=%u deferred to status phase", addr);
+	LOG_DBG("SET_ADDRESS: addr=%u (post-status safety net)", addr);
 	return 0;
 }
 
@@ -529,7 +522,7 @@ static const struct udc_api udc_musb_api = {
 		data->priv = &musb_priv_##n;                                 \
 		data->caps.rwup = true;                                      \
 		data->caps.mps0 = UDC_MPS0_64;                               \
-			data->caps.addr_before_status = true;                                      \
+		data->caps.addr_before_status = false;                                     \
 		data->caps.hs = true;                                        \
 									       \
 		for (uint8_t i = 0; i < num_eps; i++) {                      \

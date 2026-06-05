@@ -11,12 +11,6 @@
  *  - PHY enable/disable via the sunxi_usb_phy pseudo-device
  *  - PIO-only FIFO access
  *
- * Register access architecture matches Linux drivers/usb/musb/sunxi.c
- * exactly: readb/writeb/readw/writew use the addr parameter to
- * distinguish control registers (addr == mregs) from EP CSR registers
- * (addr == mregs + 0x80).
- *
- * Pattern reference: Linux drivers/usb/musb/sunxi.c
  */
 
 #include <zephyr/device.h>
@@ -29,20 +23,6 @@
 #include "../../../sunxi/usb_common.h"
 
 LOG_MODULE_REGISTER(musb_glue_sunxi, CONFIG_MUSB_LOG_LEVEL);
-
-/* =========================================================================
- * Sunxi Non-Standard Register Layout
- *
- * Reference: Linux drivers/usb/musb/sunxi.c
- *
- * sunxi musb register layout:
- * 0x00 - 0x17  fifo regs, 1 long per fifo
- * 0x40 - 0x57  generic control regs (power - frame)
- * 0x80 - 0x8f  ep control regs (addressed through hw_ep->regs, indexed)
- * 0x90 - 0x97  fifo control regs (indexed)
- * 0x98 - 0x9f  multipoint / busctl regs (indexed)
- * 0xc0         configdata reg
- * ========================================================================= */
 
 #define SUNXI_MUSB_POWER      0x0040
 #define SUNXI_MUSB_DEVCTL     0x0041
@@ -68,25 +48,6 @@ LOG_MODULE_REGISTER(musb_glue_sunxi, CONFIG_MUSB_LOG_LEVEL);
  */
 #define SUNXI_MUSB_EP_CSR_BASE 0x0080
 
-/* =========================================================================
- * Register I/O — addr-based dispatch (matches Linux sunxi.c exactly)
- *
- * Linux pattern:
- *   musb_readb(addr, offset) where:
- *     addr == mregs       → control/fifo register path
- *     addr == mregs + 0x80 → EP CSR register path
- *
- * Zephyr equivalent:
- *   ops->readb(addr, offset) where:
- *     addr == musb->base       → control/fifo register path
- *     addr == musb->base + 0x80 → EP CSR register path
- * ========================================================================= */
-
-/*
- * Saved mregs base address for addr comparison in readb/writeb.
- * Initialized in sunxi_init().
- * Matches Linux's sunxi_musb->mregs global usage.
- */
 static mm_reg_t sunxi_mregs;
 
 static uint8_t sunxi_readb(mm_reg_t addr, uint32_t offset)
@@ -542,10 +503,6 @@ static void sunxi_disable(const struct device *dev)
 	}
 }
 
-/* =========================================================================
- * Ops Table
- * ========================================================================= */
-
 static const struct musb_glue_ops sunxi_ops = {
 	.readb = sunxi_readb,
 	.writeb = sunxi_writeb,
@@ -560,14 +517,6 @@ static const struct musb_glue_ops sunxi_ops = {
 	.enable = sunxi_enable,
 	.disable = sunxi_disable,
 };
-
-/* =========================================================================
- * FIFO Configuration (V3s: 5 endpoints, 2KB FIFO RAM)
- *
- * Config from Linux sunxi.c: 4 TX/RX endpoint pairs (eps 1-4), EP0 is
- * handled separately without a FIFO config entry.
- * Max packet size 512 bytes per endpoint.
- * ========================================================================= */
 
 static const struct musb_fifo_cfg sunxi_fifo_cfg[] = {
 	{.hw_ep_num = 1, .style = FIFO_TX, .maxpacket = 512},

@@ -15,15 +15,11 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(musb_core, CONFIG_MUSB_LOG_LEVEL);
 
-/* ========== Weak Function Default ========== */
-
 __weak int musb_platform_info_get(const struct musb_glue_info **info)
 {
 	*info = NULL;
 	return -ENODEV;
 }
-
-/* ========== Internal Helpers ========== */
 
 uint8_t musb_readb(const struct musb_dev *musb, uint32_t offset)
 {
@@ -68,8 +64,6 @@ static uint8_t musb_fifosize_encode(uint16_t maxpacket)
 	}
 	return bits;
 }
-
-/* ========== FIFO Initialization ========== */
 
 static int musb_fifo_setup(struct musb_dev *musb, const struct musb_fifo_cfg *cfg,
 			   uint16_t *fifo_addr)
@@ -149,8 +143,6 @@ int musb_core_init(struct musb_dev *musb)
 	return 0;
 }
 
-/* ========== ISR: Stage0 (USB Bus Events) ========== */
-
 static void musb_handle_stage0(struct musb_dev *musb)
 {
 	uint8_t int_usb = musb->int_usb;
@@ -213,12 +205,6 @@ static void musb_handle_stage0(struct musb_dev *musb)
 		}
 	}
 }
-
-/* =========================================================================
- * EP0 Helpers
- *
- * These mirror Linux's ep0_txstate / ep0_rxstate / ep0_setup logic.
- * ========================================================================= */
 
 /*
  * Send the next chunk of EP0 TX data from ISR context.
@@ -393,6 +379,21 @@ static void ep0_read_setup(struct musb_dev *musb)
 	musb->set_address = false;
 	musb->ackpend = MUSB_CSR0_P_SVDRXPKTRDY;
 
+	/*
+	 * SET_ADDRESS: set the address flag so that the STATUSIN /
+	 * SETUPEND handlers below can write FADDR immediately when the
+	 * status phase completes — BEFORE the deferred work thread runs.
+	 *
+	 * Without this, the host sends the next SETUP to the new address
+	 * before the work thread has updated FADDR, causing EPROTO (-71).
+	 * The work thread's udc_musb_set_address() will also write FADDR
+	 * (harmless redundant write) as a safety net.
+	 */
+	if (bmRequestType == 0x00 && setup_data[1] == 0x05) {
+		musb->set_address = true;
+		musb->address = setup_data[2];
+	}
+
 	if (wLength == 0) {
 		/*
 		 * Zero-data request (SET_ADDRESS, SET_CONFIGURATION, etc.)
@@ -434,14 +435,9 @@ static void ep0_read_setup(struct musb_dev *musb)
 	}
 }
 
-/* ========== ISR: EP0 Handler ========== */
-
 /*
  * Handle EP0 interrupt.
  *
- * This is a complete rewrite to match the Linux musb_g_ep0_irq()
- * flow exactly:
- *   musb_gadget_ep0.c:641-886
  *
  * Order:
  *   1. Read CSR0, COUNT0
@@ -462,6 +458,7 @@ static void musb_handle_ep0(struct musb_dev *musb)
 	uint16_t csr;
 
 	musb_ep_select(musb, 0);
+
 	csr = musb_ep_readw(musb, 0, MUSB_CSR0);
 
 	LOG_DBG("ep0: CSR0=0x%04x stage=%d", csr, musb->ep0_stage);
@@ -469,22 +466,20 @@ static void musb_handle_ep0(struct musb_dev *musb)
 	/*
 	 * Step 2: Handle DATAEND.
 	 *
-	 * Match Linux musb_g_ep0_irq() line 656-662:
-	 *   "If DATAEND is set we should not call the callback,
-	 *    hence the status stage is not complete."
+	 * On sunxi MUSB, DATAEND auto-clears with a lag — TXPKTRDY has
+	 * already cleared (ZLP sent & ACK'd) but DATAEND still reads as
+	 * set.  The Linux driver returns early and waits for a second
+	 * interrupt where DATAEND has cleared, but on sunxi Zephyr that
+	 * second interrupt often doesn't come until the next SETUP
+	 * arrives — too late for SET_ADDRESS.
 	 *
-	 * When DATAEND is still set, the status phase has not completed
-	 * yet (hardware auto-clears DATAEND after the status phase).
-	 * Return immediately and wait for the next interrupt where
-	 * DATAEND is cleared.  The STATUSOUT/STATUSIN handlers will
-	 * then apply SET_ADDRESS, call ep_tx_done, and process any
-	 * coalesced SETUP packet — at that point the FIFO has properly
-	 * transitioned to RX mode and the SETUP data is valid.
+	 * Fix: poll CSR0 until DATAEND clears (up to 100 µs).  Once
+	 * DATAEND clears, fall through to the state machine which will
+	 * handle STATUSIN/STATUSOUT normally (write FADDR, call
+	 * ep_tx_done, process coalesced SETUP).
 	 *
-	 * Exception: if SETUPEND is also set, the transfer was aborted
-	 * by a new SETUP before the status phase completed.  DATAEND
-	 * will NOT auto-clear (status phase never happened), so we must
-	 * handle SETUPEND here to avoid getting stuck.
+	 * This replicates the timing that LOG_DBG calls naturally
+	 * provide — without it, the ISR is too fast for the hardware.
 	 */
 	if (csr & MUSB_CSR0_P_DATAEND) {
 		if (csr & MUSB_CSR0_P_SETUPEND) {
@@ -492,9 +487,6 @@ static void musb_handle_ep0(struct musb_dev *musb)
 			 * DATAEND + SETUPEND: transfer aborted by new SETUP.
 			 * Clear SETUPEND and transition state so the new
 			 * SETUP can be processed by the state machine below.
-			 * DATAEND stays set but won't interfere because we
-			 * won't reach this handler again (state transitions
-			 * away from STATUSOUT/STATUSIN).
 			 */
 			musb_ep_writew(musb, 0, MUSB_CSR0, MUSB_CSR0_P_SVDSETUPEND);
 			musb->ackpend = 0;
@@ -503,10 +495,30 @@ static void musb_handle_ep0(struct musb_dev *musb)
 			LOG_DBG("ep0: DATAEND+SETUPEND, cleared SETUPEND, "
 				"new CSR0=0x%04x", csr);
 			/* Fall through to state machine to process SETUP */
+		} else if (csr & MUSB_CSR0_RXPKTRDY) {
+			/*
+			 * DATAEND + RXPKTRDY, no SETUPEND:
+			 * Previous transfer completed, new SETUP in FIFO.
+			 * Fall through — state machine will process it.
+			 */
 		} else {
-			LOG_DBG("ep0: DATAEND set, deferring to status handler "
-				"(RXPKTRDY=%d)", !!(csr & MUSB_CSR0_RXPKTRDY));
-			return;
+			/*
+			 * DATAEND only (sunxi timing quirk).
+			 * Poll until DATAEND auto-clears (up to 200 µs).
+			 * TXPKTRDY has already cleared, meaning the ZLP
+			 * was sent and ACK'd — the status phase IS done,
+			 * DATAEND just hasn't reflected this yet.
+			 */
+			int timeout = 200;
+			while ((csr & MUSB_CSR0_P_DATAEND) && timeout-- > 0) {
+				k_busy_wait(1);
+				csr = musb_ep_readw(musb, 0, MUSB_CSR0);
+			}
+			if (csr & MUSB_CSR0_P_DATAEND) {
+				/* Timeout — give up, return early */
+				return;
+			}
+			/* DATAEND cleared — fall through to state machine */
 		}
 	}
 
@@ -672,21 +684,25 @@ static void musb_handle_ep0(struct musb_dev *musb)
 			  *   TXPKTRDY does NOT auto-send the ZLP).
 			  */
 			 if (musb->ep0_stage == MUSB_EP0_STAGE_ACKWAIT) {
-			 	musb->ackpend |= MUSB_CSR0_P_DATAEND;
-			 	if (musb->ackpend & MUSB_CSR0_TXPKTRDY) {
-			 		musb->ep0_stage = MUSB_EP0_STAGE_STATUSOUT;
-			 	} else {
-			 		musb->ackpend |= MUSB_CSR0_TXPKTRDY;
-			 		musb->ep0_stage = MUSB_EP0_STAGE_STATUSIN;
-			 	}
+			  musb->ackpend |= MUSB_CSR0_P_DATAEND;
+			  if (musb->ackpend & MUSB_CSR0_TXPKTRDY) {
+			 	 musb->ep0_stage = MUSB_EP0_STAGE_STATUSOUT;
+			  } else {
+			 	 musb->ackpend |= MUSB_CSR0_TXPKTRDY;
+			 	 musb->ep0_stage = MUSB_EP0_STAGE_STATUSIN;
+			  }
 			 }
 
 			/* Write accumulated ackpend */
 			if (musb->ackpend) {
 				musb_ep_select(musb, 0);
 				musb_ep_writew(musb, 0, MUSB_CSR0, musb->ackpend);
+				LOG_DBG("ACKWAIT: CSR0=0x%04x stage=%d set_addr=%d",
+					musb->ackpend, musb->ep0_stage,
+					musb->set_address);
 				musb->ackpend = 0;
 			}
+
 		}
 		break;
 
@@ -706,8 +722,6 @@ static void musb_handle_ep0(struct musb_dev *musb)
 		break;
 	}
 }
-
-/* ========== ISR: TX Handler (EP1+) ========== */
 
 /*
  * Handle TX interrupt for non-EP0 endpoints.
@@ -772,8 +786,6 @@ static void musb_handle_tx(struct musb_dev *musb, uint8_t ep)
 		musb->callbacks->ep_tx_done(musb, ep);
 	}
 }
-
-/* ========== ISR: RX Handler (EP1+) ========== */
 
 /*
  * Handle RX interrupt for non-EP0 endpoints.
@@ -1179,7 +1191,29 @@ int musb_ep_set_halt(struct musb_dev *musb, uint8_t ep, bool stall)
 
 	musb_ep_select(musb, ep);
 
-	/* TX direction */
+	if (ep == 0) {
+		/*
+		 * EP0 uses CSR0, not TXCSR.  The bit layout differs:
+		 *   CSR0 SENDSTALL = BIT(5)  (MUSB_CSR0_P_SENDSTALL)
+		 *   TXCSR SENDSTALL = BIT(4) (MUSB_TXCSR_P_SENDSTALL)
+		 * The previous code used MUSB_TXCSR_P_SENDSTALL (BIT(4))
+		 * which writes to CSR0 SETUPEND (read-only status bit),
+		 * so the STALL was never actually sent to the host.
+		 */
+		csr = musb_ep_readw(musb, 0, MUSB_CSR0);
+
+		if (stall) {
+			csr |= MUSB_CSR0_P_SENDSTALL;
+		} else {
+			csr &= ~MUSB_CSR0_P_SENDSTALL;
+		}
+
+		musb_ep_writew(musb, 0, MUSB_CSR0, csr);
+		LOG_DBG("EP0 STALL: csr0=0x%04x stall=%d", csr, stall);
+		return 0;
+	}
+
+	/* TX direction (EP1+) */
 	csr = musb_ep_readw(musb, ep, MUSB_TXCSR);
 
 	if (stall) {
@@ -1191,11 +1225,7 @@ int musb_ep_set_halt(struct musb_dev *musb, uint8_t ep, bool stall)
 
 	musb_ep_writew(musb, ep, MUSB_TXCSR, csr);
 
-	/* RX direction (EP0 uses CSR0, skip for EP0) */
-	if (ep == 0) {
-		return 0;
-	}
-
+	/* RX direction */
 	csr = musb_ep_readw(musb, ep, MUSB_RXCSR);
 
 	if (stall) {
@@ -1209,8 +1239,6 @@ int musb_ep_set_halt(struct musb_dev *musb, uint8_t ep, bool stall)
 
 	return 0;
 }
-
-/* ========== Device Control ========== */
 
 void musb_set_address(struct musb_dev *musb, uint8_t addr)
 {
