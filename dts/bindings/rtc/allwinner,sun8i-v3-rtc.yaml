@@ -1,0 +1,17 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner SUN8I V3s RTC (Real-Time Clock)
+
+compatible: "allwinner,sun8i-v3-rtc"
+
+include:
+  - rtc.yaml
+  - rtc-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true

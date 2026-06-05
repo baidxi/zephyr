@@ -86,6 +86,16 @@
 			status = "okay";
 		};
 
+		rtc: rtc@1c20400 {
+			compatible = "allwinner,sun8i-v3-rtc";
+			reg = <0x01c20400 0x400>;
+			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+				     <GIC_SPI 41 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			clocks = <&osc32k>;
+			alarms-count = <1>;
+			status = "disabled";
+		};
+
 		ccu: clock-controller@1c20000 {
 			compatible = "allwinner,sun8i-v3s-ccu";
 			status = "okay";
