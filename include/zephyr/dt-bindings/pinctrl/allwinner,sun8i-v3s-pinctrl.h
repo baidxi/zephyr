@@ -11,15 +11,18 @@
  * @brief Pinmux encoding for Allwinner SUN8I-V3S.
  *
  * Encoding layout:
- *   bits [2:0]  = pin number  (0-7, enough for max 22 pins per port when
- *                               combined with cfg register index)
- *   bits [5:3]  = port number (1-6, matching dtsi reg property)
- *   bits [8:6]  = function    (0-7, 3-bit function select)
+ *   bits [4:0]  = pin number  (0-31, enough for Port E pins 0-24)
+ *   bits [7:5]  = port number (0-7, matching dtsi reg property)
+ *   bits [10:8] = function    (0-7, 3-bit function select)
+ *
+ * Note: Previous encoding used only 3 bits for pin (max 7), which caused
+ * pins >= 8 to corrupt the port/func fields.  Port E has up to pin 24,
+ * requiring at least 5 bits.
  */
 
 #define SUN8I_V3S_PINMUX_PIN_SHIFT   0
-#define SUN8I_V3S_PINMUX_PORT_SHIFT  3
-#define SUN8I_V3S_PINMUX_FUNC_SHIFT  6
+#define SUN8I_V3S_PINMUX_PORT_SHIFT  5
+#define SUN8I_V3S_PINMUX_FUNC_SHIFT  8
 
 #define SUN8I_V3S_PINMUX(port, pin, func) \
 	(((port) << SUN8I_V3S_PINMUX_PORT_SHIFT) | \
@@ -27,7 +30,7 @@
 	 ((func) << SUN8I_V3S_PINMUX_FUNC_SHIFT))
 
 #define SUN8I_V3S_PINMUX_PORT(val)  (((val) >> SUN8I_V3S_PINMUX_PORT_SHIFT) & 0x7)
-#define SUN8I_V3S_PINMUX_PIN(val)   (((val) >> SUN8I_V3S_PINMUX_PIN_SHIFT) & 0x7)
+#define SUN8I_V3S_PINMUX_PIN(val)   (((val) >> SUN8I_V3S_PINMUX_PIN_SHIFT) & 0x1F)
 #define SUN8I_V3S_PINMUX_FUNC(val)  (((val) >> SUN8I_V3S_PINMUX_FUNC_SHIFT) & 0x7)
 
 /* Port numbers matching sun8i-v3s.dtsi gpio reg property */
@@ -45,8 +48,11 @@
 #define FUNC_PC_SDC2	2	/* PC0=CLK, PC1=CMD, PC2=RST, PC3=D0 */
 #define FUNC_PC_SPI0	3	/* PC0=MISO, PC1=CLK, PC2=CS, PC3=MOSI */
 
+/* Port E functions */
+#define FUNC_LCD	3	/* PE0~PE19=D0~D19, PE20=CLK, PE21=DE, PE22=HSYNC, PE23=VSYNC */
+
 /* Port B functions */
-#define FUNC_PB_TWI0	2	/* PB4=SCL, PB5=SDA */
+#define FUNC_PB_TWI0	2	/* PB6=SCL, PB7=SDA */
 
 /* Port F functions — verified against Linux pinctrl-sun8i-v3s.c */
 #define FUNC_PF_SDC0	2	/* PF0=D1, PF1=D0, PF2=CLK, PF3=CMD, PF4=D3, PF5=D2 */

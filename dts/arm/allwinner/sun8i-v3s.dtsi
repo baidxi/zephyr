@@ -13,6 +13,8 @@
 #include <zephyr/dt-bindings/reset/allwinner,sun8i-v3s-ccu.h>
 #include <zephyr/dt-bindings/counter/sun8i-v3s-counter.h>
 #include <zephyr/dt-bindings/dma/allwinner,sun8i-v3s-dma.h>
+#include <zephyr/dt-bindings/clock/sun8i-de2.h>
+#include <zephyr/dt-bindings/reset/sun8i-de2.h>
 
 / {
 	interrupt-parent = <&gic>;
@@ -429,6 +431,48 @@
 								 "100BASE Full-Duplex";
 					};
 			};
+		};
+
+		display_clocks: clock@1000000 {
+			compatible = "allwinner,sun8i-v3s-de2-clk";
+			reg = <0x01000000 0x10000>;
+			clocks = <&ccu CLK_BUS_DE>,
+				 <&ccu CLK_DE>;
+			clock-names = "bus",
+				      "mod";
+			resets = <&reset RST_BUS_DE>;
+			#clock-cells = <1>;
+			status = "disabled";
+
+			de2_reset: reset-controller {
+				compatible = "allwinner,sun8i-de2-reset";
+				#reset-cells = <1>;
+			};
+		};
+
+		mixer0: mixer@1100000 {
+			compatible = "allwinner,sun8i-v3s-de2-mixer";
+			reg = <0x01100000 0x100000>;
+			clocks = <&display_clocks CLK_BUS_MIXER0>,
+				 <&display_clocks CLK_MIXER0>;
+			clock-names = "bus",
+				      "mod";
+			resets = <&de2_reset RST_MIXER0>;
+			tcon = <&tcon0>;
+			status = "disabled";
+		};
+
+		tcon0: tcon@1c0c000 {
+			compatible = "allwinner,sun8i-v3s-tcon";
+			reg = <0x01c0c000 0x1000>;
+			interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			clocks = <&ccu CLK_BUS_TCON0>,
+				 <&ccu CLK_TCON0>;
+			clock-names = "ahb",
+				      "tcon-ch0";
+			resets = <&reset RST_BUS_TCON0>;
+			reset-names = "lcd";
+			status = "disabled";
 		};
 	};
 };

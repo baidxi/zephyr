@@ -10,3 +10,12 @@ config RESET_SUN8I_V3S
 	help
 	  Enable support for Allwinner Sun8i V3s reset controller.
 	  This driver provides reset control for Sun8i V3s SoC peripherals.
+
+config RESET_SUN8I_DE2
+	bool "Allwinner DE2 CCU reset controller driver"
+	depends on DT_HAS_ALLWINNER_SUN8I_DE2_RESET_ENABLED
+	default y
+	help
+	  Enable support for Allwinner DE2 CCU reset controller.
+	  This driver provides reset control for DE2 Mixer, Write-Back,
+	  and Rotation modules within the Display Engine subsystem.

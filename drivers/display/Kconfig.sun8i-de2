@@ -1,0 +1,19 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config SUN8I_DE2_MIXER
+	bool "Allwinner DE2 Mixer display driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_DE2_MIXER_ENABLED
+	help
+	  Enable the Allwinner DE2 Mixer display driver for V3s SoC.
+	  The mixer implements the Zephyr display driver API, providing
+	  framebuffer-based display output via the DE2 Mixer's UI layer.
+
+config SUN8I_V3S_TCON
+	bool "Allwinner V3s TCON driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_TCON_ENABLED
+	help
+	  Enable the Allwinner V3s TCON (Timing Controller) driver.
+	  The TCON generates HSYNC/VSYNC/DE/DCLK signals for RGB LCD panels.

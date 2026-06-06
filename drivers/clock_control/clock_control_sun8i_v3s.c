@@ -76,6 +76,43 @@ LOG_MODULE_REGISTER(ccu, CONFIG_LOG_DEFAULT_LEVEL);
 #define SPI0_CLK_GATE		BIT(31)
 #define SPI0_CLK_PLL_BYPASS	BIT(30)  /* Bypass PLL lock when using OSC24M */
 
+/* PLL_VIDEO (0x010): NM PLL for video/display clocks
+ * Integer mode: PLL = 24MHz * N / M
+ * Fractional mode (bit24=0): output = 297MHz (bit25=1) or 270MHz (bit25=0)
+ * N: bits[14:8] (7-bit), M: bits[3:0] (4-bit)
+ */
+#define PLL_VIDEO_CTRL          0x010
+#define PLL_VIDEO_EN            BIT(31)
+#define PLL_VIDEO_LOCK          BIT(28)
+#define PLL_VIDEO_MODE_SEL      BIT(24)
+#define PLL_VIDEO_FRAC_SEL      BIT(25)
+#define PLL_VIDEO_N_SHIFT       8
+#define PLL_VIDEO_N_MASK        GENMASK(14, 8)
+#define PLL_VIDEO_M_SHIFT       0
+#define PLL_VIDEO_M_MASK        GENMASK(3, 0)
+
+/* DE_CLK (0x104): divider + mux + gate
+ * Source mux: 000=PLL_VIDEO, 010=PLL_PERIPH0
+ */
+#define DE_CLK_REG              0x104
+#define DE_CLK_GATE             BIT(31)
+#define DE_CLK_SRC_MASK         GENMASK(26, 24)
+#define DE_CLK_SRC_PLL_VIDEO    0
+#define DE_CLK_SRC_PLL_PERIPH0  2
+#define DE_CLK_DIV_M_SHIFT      0
+#define DE_CLK_DIV_M_MASK       GENMASK(3, 0)
+
+/* TCON_CLK (0x118): divider + mux + gate
+ * Source mux: 000=PLL_VIDEO, 001=PLL_PERIPH0  (DIFFERENT from DE!)
+ */
+#define TCON_CLK_REG            0x118
+#define TCON_CLK_GATE           BIT(31)
+#define TCON_CLK_SRC_MASK       GENMASK(26, 24)
+#define TCON_CLK_SRC_PLL_VIDEO  0
+#define TCON_CLK_SRC_PLL_PERIPH0 1
+#define TCON_CLK_DIV_M_SHIFT    0
+#define TCON_CLK_DIV_M_MASK     GENMASK(3, 0)
+
 
 struct mmc_clk_parent {
 	uint32_t src;	/* CLK_SRC_SEL value */
@@ -132,6 +169,7 @@ static int _sun8i_set_clk_cpu(const struct device *dev, const struct sun8i_clock
 static int _sun8i_set_clk_spi0(const struct device *dev, const struct sun8i_clock_info *info, void *data);
 static int _sun8i_set_clk_mmc(const struct device *dev, const struct sun8i_clock_info *info, void *data);
 static int _sun8i_set_clk_ce(const struct device *dev, const struct sun8i_clock_info *info, void *data);
+static int _sun8i_set_clk_de_tcon(const struct device *dev, const struct sun8i_clock_info *info, void *data);
 
 static const struct sun8i_clock_info sun8i_v3s_clock_info[] = {
 	CLK_PROP(CLK_CPU, 0, _sun8i_set_clk_cpu),
@@ -146,6 +184,8 @@ static const struct sun8i_clock_info sun8i_v3s_clock_info[] = {
 	CLK_PROP(CLK_MMC2_OUTPUT, 0x90, _sun8i_set_clk_mmc),
 	CLK_PROP(CLK_CE, 0x9c, _sun8i_set_clk_ce),
 	CLK_PROP(CLK_SPI0, 0xa0, _sun8i_set_clk_spi0),
+	CLK_PROP(CLK_DE, DE_CLK_REG, _sun8i_set_clk_de_tcon),
+	CLK_PROP(CLK_TCON0, TCON_CLK_REG, _sun8i_set_clk_de_tcon),
 };
 
 static const struct sun8i_clock_gate_info sun8i_clock_gate_info[] = {
@@ -570,6 +610,250 @@ static int _sun8i_set_clk_ce(const struct device *dev,
 	return 0;
 }
 
+/*
+ * Configure PLL_VIDEO in integer mode for a target pixel clock.
+ *
+ * Searches for PLL_VIDEO N, M_pll values such that:
+ *   F_pll = 24 MHz × (N+1) / (M_pll+1)
+ *   F_tcon = F_pll / (M_tcon+1) ≈ target_freq
+ *
+ * Prefers M_pll=0 (divide by 1) for the cleanest clock output.
+ * Enforces a minimum PLL VCO frequency of 200 MHz.
+ *
+ * Returns the actual PLL_VIDEO frequency, or 0 on failure.
+ */
+#define PLL_VIDEO_MIN_FREQ	200000000U
+
+static uint32_t configure_pll_video_for_target(uintptr_t ccu_base,
+					       uint32_t target_freq)
+{
+	uint32_t best_n = 0, best_m_pll = 0;
+	uint32_t best_pll_freq = 0;
+	bool found_exact = false;
+
+	/* Pass 1: exact match with M_pll = 0 (divide by 1, cleanest).
+	 * Accept the first valid match (lowest tcon_m → lowest PLL freq
+	 * above minimum).  Lower PLL frequencies are more stable.
+	 */
+	for (uint32_t tcon_m = 0; tcon_m <= 15 && !found_exact; tcon_m++) {
+		uint64_t pll64 = (uint64_t)target_freq * (tcon_m + 1);
+
+		if (pll64 % 24000000U == 0) {
+			uint32_t n_val = (uint32_t)(pll64 / 24000000U);
+
+			if (n_val >= 1 && n_val <= 128
+			    && (uint32_t)pll64 >= PLL_VIDEO_MIN_FREQ) {
+				best_n = n_val - 1;
+				best_m_pll = 0;
+				best_pll_freq = (uint32_t)pll64;
+				found_exact = true;
+			}
+		}
+	}
+
+	/* Pass 2: exact match with M_pll = 1..3 */
+	if (!found_exact) {
+		for (uint32_t tcon_m = 0; tcon_m <= 15 && !found_exact;
+		     tcon_m++) {
+			for (uint32_t m_pll = 1; m_pll <= 3 && !found_exact;
+			     m_pll++) {
+				uint64_t num = (uint64_t)target_freq
+					     * (tcon_m + 1) * (m_pll + 1);
+
+				if (num % 24000000U == 0) {
+					uint32_t n_val = (uint32_t)(num / 24000000U);
+					uint32_t pll_freq = 24000000U * n_val
+							  / (m_pll + 1);
+
+					if (n_val >= 1 && n_val <= 128
+					    && pll_freq >= PLL_VIDEO_MIN_FREQ) {
+						best_n = n_val - 1;
+						best_m_pll = m_pll;
+						best_pll_freq = pll_freq;
+						found_exact = true;
+					}
+				}
+			}
+		}
+	}
+
+	/* Pass 3: best approximate match with M_pll = 0 */
+	if (!found_exact) {
+		uint32_t best_err = UINT32_MAX;
+
+		for (uint32_t tcon_m = 0; tcon_m <= 15; tcon_m++) {
+			for (uint32_t n_val = 1; n_val <= 128; n_val++) {
+				uint32_t pll_freq = 24000000U * n_val;
+				uint32_t actual = pll_freq / (tcon_m + 1);
+				uint32_t err = (actual > target_freq)
+					     ? (actual - target_freq)
+					     : (target_freq - actual);
+
+				if (err < best_err) {
+					best_err = err;
+					best_n = n_val - 1;
+					best_m_pll = 0;
+					best_pll_freq = pll_freq;
+				}
+			}
+		}
+	}
+
+	if (best_pll_freq == 0) {
+		return 0;
+	}
+
+	/* Configure PLL_VIDEO */
+	uint32_t reg;
+
+	/* Disable PLL (required for reconfiguration) */
+	reg = sys_read32(ccu_base + PLL_VIDEO_CTRL);
+	reg &= ~PLL_VIDEO_EN;
+	sys_write32(reg, ccu_base + PLL_VIDEO_CTRL);
+
+	/* Set integer mode with N, M values */
+	reg = PLL_VIDEO_MODE_SEL
+	    | (best_n << PLL_VIDEO_N_SHIFT)
+	    | (best_m_pll << PLL_VIDEO_M_SHIFT);
+	sys_write32(reg, ccu_base + PLL_VIDEO_CTRL);
+
+	/* Enable PLL */
+	reg |= PLL_VIDEO_EN;
+	sys_write32(reg, ccu_base + PLL_VIDEO_CTRL);
+
+	/* Wait for PLL lock */
+	int timeout = 10000;
+
+	while (!(sys_read32(ccu_base + PLL_VIDEO_CTRL) & PLL_VIDEO_LOCK)) {
+		if (--timeout == 0) {
+			break;
+		}
+	}
+
+	LOG_INF("PLL_VIDEO: integer mode N=%u M=%u → %u Hz",
+		best_n + 1, best_m_pll + 1, best_pll_freq);
+
+	return best_pll_freq;
+}
+
+/*
+ * DE and TCON clocks: similar register layout but DIFFERENT source mux mapping!
+ *   DE_CLK  (0x104): bits[26:24] = 000:PLL_VIDEO, 010:PLL_PERIPH0
+ *   TCON_CLK(0x118): bits[26:24] = 000:PLL_VIDEO, 001:PLL_PERIPH0
+ *   bits[31]: gate, bits[3:0]: M divider (0→/1 ... 15→/16)
+ */
+static int _sun8i_set_clk_de_tcon(const struct device *dev,
+				  const struct sun8i_clock_info *info, void *data)
+{
+	const struct sun8i_ccu_config *ccu_cfg = dev->config;
+	uint32_t target_freq = (uint32_t)(uintptr_t)data;
+	uint32_t reg, best_m, best_actual, best_diff;
+	uint32_t parent_freqs[] = { 0, 0 };
+	int best_src_type = 0;  /* 0=pll-video, 1=pll-periph0 */
+	bool is_tcon = (info->offset == TCON_CLK_REG);
+	int i;
+
+	/*
+	 * PLL_VIDEO was already configured during CCU init (PRE_KERNEL_1)
+	 * based on the panel's pixel clock from the device tree.
+	 * Just read the current PLL register to determine the frequency.
+	 */
+	{
+		reg = sys_read32(ccu_cfg->base + PLL_VIDEO_CTRL);
+		if (reg & PLL_VIDEO_EN) {
+			if (reg & PLL_VIDEO_MODE_SEL) {
+				uint32_t n = ((reg >> PLL_VIDEO_N_SHIFT) & 0x7f) + 1;
+				uint32_t m = ((reg >> PLL_VIDEO_M_SHIFT) & 0xf) + 1;
+
+				parent_freqs[0] = 24000000U * n / m;
+				LOG_INF("PLL_VIDEO integer mode: n=%u m=%u freq=%u",
+					n, m, parent_freqs[0]);
+			} else {
+				parent_freqs[0] = (reg & PLL_VIDEO_FRAC_SEL)
+						  ? 297000000U : 270000000U;
+				LOG_INF("PLL_VIDEO fractional: freq=%u",
+					parent_freqs[0]);
+			}
+		} else {
+			parent_freqs[0] = 297000000U;
+			LOG_WRN("PLL_VIDEO NOT enabled, assuming %u Hz",
+				parent_freqs[0]);
+		}
+	}
+	parent_freqs[1] = 600000000U;  /* pll-periph0 */
+
+	if (target_freq == 0) {
+		/* No target: just enable gate with current settings */
+		reg = sys_read32(ccu_cfg->base + info->offset);
+		reg |= BIT(31);
+		sys_write32(reg, ccu_cfg->base + info->offset);
+		return 0;
+	}
+
+	best_actual = 0;
+	best_m = 0;
+	best_diff = UINT32_MAX;
+
+	/* Try both parent sources */
+	for (i = 0; i < 2; i++) {
+		if (i == 0 && parent_freqs[0] == 0) {
+			continue;  /* skip pll-video if not available */
+		}
+
+		/* M divider range: 0-15 (divide by m+1) */
+		for (uint32_t m = 0; m <= 15; m++) {
+			uint32_t actual = parent_freqs[i] / (m + 1);
+
+			if (actual == 0) {
+				continue;
+			}
+
+			uint32_t diff = (actual > target_freq) ?
+				(actual - target_freq) :
+				(target_freq - actual);
+
+			if (diff < best_diff || (diff == best_diff && actual > best_actual)) {
+				best_diff = diff;
+				best_actual = actual;
+				best_m = m;
+				best_src_type = i;  /* 0=pll-video, 1=pll-periph0 */
+			}
+		}
+	}
+
+	if (best_actual == 0) {
+		LOG_ERR("DE/TCON clk: no valid divider for %u Hz", target_freq);
+		return -EINVAL;
+	}
+
+	/* Map abstract source type to register-specific source select value */
+	uint32_t src_reg_val;
+	if (is_tcon) {
+		src_reg_val = (best_src_type == 0)
+			? TCON_CLK_SRC_PLL_VIDEO
+			: TCON_CLK_SRC_PLL_PERIPH0;  /* TCON: 001 */
+	} else {
+		src_reg_val = (best_src_type == 0)
+			? DE_CLK_SRC_PLL_VIDEO
+			: DE_CLK_SRC_PLL_PERIPH0;    /* DE:   010 */
+	}
+
+	reg = (src_reg_val << 24) | (best_m << 0) | BIT(31);
+
+	LOG_INF("%s clk offset=0x%lx: target=%u src_type=%d src_reg=%u m=%u actual=%u reg=0x%08x",
+		is_tcon ? "TCON" : "DE",
+		(unsigned long)info->offset, target_freq, best_src_type,
+		src_reg_val, best_m, best_actual, reg);
+
+	sys_write32(reg, ccu_cfg->base + info->offset);
+
+	/* Read back and verify */
+	reg = sys_read32(ccu_cfg->base + info->offset);
+	LOG_INF("  readback: 0x%08x", reg);
+
+	return 0;
+}
+
 static const struct mmc_clk_parent mmc_parents[] = {
 	{ MMC_CLK_SRC_HOSC,		24000000 },
 	{ MMC_CLK_SRC_PLL_PERIPH0,	600000000 },
@@ -728,6 +1012,51 @@ static int sun8i_get_rate(const struct device *dev,
 		return 0;
 	}
 
+	/* DE and TCON clocks: read register and compute output rate */
+	if (info->set == _sun8i_set_clk_de_tcon) {
+		uint32_t reg = sys_read32(ccu_cfg->base + info->offset);
+		uint32_t src = (reg >> 24) & 0x7;
+		uint32_t m = reg & 0xf;
+		uint32_t parent_freq;
+		bool is_tcon = (info->offset == TCON_CLK_REG);
+
+		/* Check source based on register-specific mapping:
+		 * DE:   0=PLL_VIDEO, 2=PLL_PERIPH0
+		 * TCON: 0=PLL_VIDEO, 1=PLL_PERIPH0
+		 */
+		bool is_pll_video = (src == 0);
+		bool is_pll_periph0 = is_tcon
+			? (src == TCON_CLK_SRC_PLL_PERIPH0)
+			: (src == DE_CLK_SRC_PLL_PERIPH0);
+
+		if (is_pll_video) {
+			uint32_t pll_reg = sys_read32(ccu_cfg->base + PLL_VIDEO_CTRL);
+			if (pll_reg & PLL_VIDEO_EN) {
+				if (pll_reg & PLL_VIDEO_MODE_SEL) {
+					/* Integer mode */
+					uint32_t n = ((pll_reg >> PLL_VIDEO_N_SHIFT) & 0x7f) + 1;
+					uint32_t div_m = ((pll_reg >> PLL_VIDEO_M_SHIFT) & 0xf) + 1;
+					parent_freq = 24000000U * n / div_m;
+				} else {
+					/* Fractional mode */
+					parent_freq = (pll_reg & PLL_VIDEO_FRAC_SEL)
+						      ? 297000000U : 270000000U;
+				}
+			} else {
+				parent_freq = 297000000U;
+			}
+		} else if (is_pll_periph0) {
+			parent_freq = 600000000U;
+		} else {
+			LOG_WRN("Unknown %s clock source %u at offset 0x%x",
+				is_tcon ? "TCON" : "DE", src, info->offset);
+			return -EIO;
+		}
+
+		*rate = parent_freq / (m + 1);
+		return 0;
+	}
+
 	return -ENOSYS;
 }
 
@@ -740,6 +1069,38 @@ DEVICE_API(clock_control, sun8i_clock_control_api) = {
 
 static int sun8i_ccu_init(const struct device *dev)
 {
+	const struct sun8i_ccu_config *ccu_cfg = dev->config;
+
+	/*
+	 * Configure PLL_VIDEO in integer mode based on the panel's
+	 * pixel clock from the device tree.  This must be done early
+	 * (during CCU init, PRE_KERNEL_1) so that PLL_VIDEO is stable
+	 * before any display driver (DE2, TCON) starts using it.
+	 *
+	 * The algorithm finds the optimal integer-mode PLL frequency
+	 * and TCON M-divider to produce an exact pixel clock match.
+	 */
+#if DT_NODE_EXISTS(DT_CHILD(DT_NODELABEL(tcon0), display_timings))
+	uint32_t pixel_clock = DT_PROP(
+		DT_CHILD(DT_NODELABEL(tcon0), display_timings),
+		clock_frequency);
+
+	if (pixel_clock > 0) {
+		uint32_t pll_freq = configure_pll_video_for_target(
+			ccu_cfg->base, pixel_clock);
+
+		if (pll_freq > 0) {
+			LOG_INF("PLL_VIDEO configured for panel: %u Hz pixel clock → %u Hz PLL",
+				pixel_clock, pll_freq);
+		} else {
+			LOG_WRN("PLL_VIDEO auto-config failed for %u Hz pixel clock",
+				pixel_clock);
+		}
+	}
+#else
+	LOG_INF("No panel timings in DT, PLL_VIDEO not auto-configured");
+#endif
+
 	return 0;
 }
 

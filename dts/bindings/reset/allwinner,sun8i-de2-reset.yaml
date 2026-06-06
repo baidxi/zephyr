@@ -1,0 +1,31 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner DE2 Display Engine Reset Controller.
+
+  This is the reset controller portion of the DE2 CCU. It provides
+  reset lines for the Mixer, Write-Back, and Rotation modules.
+
+  The reset register is at a fixed offset (0x08) within the DE2 CCU
+  register space. The parent node's reg property provides the base address.
+
+  Reset IDs are defined in <zephyr/dt-bindings/reset/sun8i-de2.h>:
+    RST_MIXER0 = 0
+    RST_MIXER1 = 1
+    RST_WB     = 2
+    RST_ROT    = 3
+
+compatible: "allwinner,sun8i-de2-reset"
+
+include: [reset-controller.yaml, base.yaml]
+
+properties:
+  "#reset-cells":
+    const: 1
+    description: |
+      Number of cells in a reset specifier.
+      Should contain a single cell with the reset ID.
+
+reset-cells:
+  - id

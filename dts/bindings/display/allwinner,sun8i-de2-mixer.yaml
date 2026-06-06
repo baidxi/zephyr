@@ -1,0 +1,53 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner DE2 Mixer (Display Engine 2.0 Mixer).
+
+  The mixer is the display compositing engine that takes frame buffers
+  from DDR memory, performs layer blending and pixel format conversion,
+  and outputs a pixel stream to the TCON.
+
+  V3s has one mixer (mixer0) with 2 video layers (VI) and 1 UI layer.
+  In Zephyr, only the UI layer is used for simplicity (single framebuffer
+  mode).
+
+  Based on Linux kernel bindings:
+  Documentation/devicetree/bindings/display/allwinner,sun8i-a83t-de2-mixer.yaml
+
+compatible: "allwinner,sun8i-v3s-de2-mixer"
+
+include: [lcd-controller.yaml, reset-device.yaml]
+
+properties:
+  reg:
+    required: true
+    description: |
+      Base address and size of Mixer register space (0x01100000, 1MB).
+
+  clocks:
+    type: phandle-array
+    required: true
+    description: |
+      Input clocks from the DE2 clock controller:
+      - CLK_BUS_MIXER0 (bus interface clock)
+      - CLK_MIXER0 (module clock)
+
+  clock-names:
+    type: string-array
+    required: true
+    description: |
+      Names of input clocks: "bus" and "mod".
+
+  resets:
+    type: phandle-array
+    required: true
+    description: |
+      Reset specifier for the mixer (RST_MIXER0 from DE2 CCU).
+
+  tcon:
+    type: phandle
+    required: true
+    description: |
+      Phandle to the TCON (Timing Controller) device that generates
+      HSYNC/VSYNC/DCLK signals for the LCD panel.

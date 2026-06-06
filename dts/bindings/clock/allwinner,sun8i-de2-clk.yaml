@@ -1,0 +1,51 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner DE2 Display Engine Clock Controller.
+
+  The DE2 CCU provides bus clock gates, module clock gates, and clock dividers
+  for the Mixer, Write-Back, and Rotation modules.
+
+  Reset control is provided by a child reset-controller node (compatible
+  "allwinner,sun8i-de2-reset").
+
+  Based on Linux kernel bindings:
+  Documentation/devicetree/bindings/clock/allwinner,sun8i-a83t-de2-clk.yaml
+
+compatible: "allwinner,sun8i-v3s-de2-clk"
+
+include: [clock-controller.yaml, base.yaml]
+
+properties:
+  reg:
+    required: true
+    description: |
+      Base address and size of DE2 CCU register space (0x01000000, 64KB).
+
+  clocks:
+    type: phandle-array
+    required: true
+    description: |
+      Input clocks: bus clock (CLK_BUS_DE) and module clock (CLK_DE).
+
+  clock-names:
+    type: string-array
+    required: true
+    description: |
+      Names of input clocks: "bus" and "mod".
+
+  resets:
+    type: phandle-array
+    required: true
+    description: |
+      Reset specifier for the DE bus reset (RST_BUS_DE).
+
+  "#clock-cells":
+    const: 1
+    description: |
+      Number of cells in a clock specifier. Should contain a single cell
+      with the clock ID from <dt-bindings/clock/sun8i-de2.h>.
+
+clock-cells:
+  - clk-id

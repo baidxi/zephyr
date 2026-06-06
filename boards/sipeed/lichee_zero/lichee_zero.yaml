@@ -19,3 +19,4 @@ supported:
   - crypto
   - rng
   - rtc
+  - display

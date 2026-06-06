@@ -12,6 +12,10 @@
  * Based on Linux kernel include/dt-bindings/clock/sun8i-v3s-ccu.h
  */
 
+/* PLL clocks */
+#define CLK_PLL_VIDEO		6
+#define CLK_PLL_PERIPH0		10
+
 #define CLK_CPU			14
 
 #define CLK_BUS_CE		20

@@ -1,0 +1,70 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner V3s TCON (Timing Controller) for LCD parallel output.
+
+  The TCON generates HSYNC, VSYNC, DE (Data Enable), and DCLK (Pixel Clock)
+  signals for driving RGB parallel LCD panels.
+  It receives pixel data from the DE2 Mixer.
+
+  V3s has one TCON (tcon0) with channel 0 only, supporting RGB parallel
+  output and LVDS (not used in Zephyr for now).
+
+compatible: "allwinner,sun8i-v3s-tcon"
+
+include: [base.yaml, reset-device.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    type: array
+    required: true
+    description: |
+      Base address and size of TCON register space (0x01c0c000, 4KB).
+
+  interrupts:
+    type: array
+    required: true
+    description: |
+      TCON interrupt (GIC_SPI 86), used for VSYNC events.
+
+  clocks:
+    type: phandle-array
+    required: true
+    description: |
+      Input clocks from the CCU:
+      - CLK_BUS_TCON0 (AHB bus clock)
+      - CLK_TCON0 (channel 0 pixel clock, sourced from pll-video)
+
+  clock-names:
+    type: string-array
+    required: true
+    description: |
+      Names of input clocks: "ahb" and "tcon-ch0".
+
+  resets:
+    type: phandle-array
+    required: true
+    description: |
+      Reset specifier for the TCON (RST_BUS_TCON0 from CCU).
+
+  reset-names:
+    type: string-array
+    required: true
+    description: |
+      Names of reset lines: "lcd".
+
+  reset-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      Optional GPIO specifier for LCD panel backlight enable or panel reset.
+      On the Lichee Zero board, PB4 is connected to LED_EN (backlight enable).
+      When specified, the GPIO is configured as output and set HIGH when the
+      TCON output is enabled, LOW when disabled.
+
+child-binding:
+  description: |
+    Panel timing configuration child node.
+    Must use compatible "zephyr,panel-timing" (defined separately).
+    The TCON driver reads these timings during initialization.

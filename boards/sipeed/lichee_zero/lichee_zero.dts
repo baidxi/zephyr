@@ -7,6 +7,7 @@
 /dts-v1/;
 
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/display/panel.h>
 #include <zephyr/dt-bindings/pinctrl/allwinner,sun8i-v3s-pinctrl.h>
 #include <arm/armv7-a.dtsi>
 #include <allwinner/sun8i-v3s.dtsi>
@@ -59,8 +60,8 @@
 
 	default_state {
 		i2c0_pins: i2c0-pins {
-			pinmux = <SUN8I_V3S_PINMUX(PORT_B, 4, FUNC_PB_TWI0)>,
-				 <SUN8I_V3S_PINMUX(PORT_B, 5, FUNC_PB_TWI0)>;
+			pinmux = <SUN8I_V3S_PINMUX(PORT_B, 6, FUNC_PB_TWI0)>,
+				 <SUN8I_V3S_PINMUX(PORT_B, 7, FUNC_PB_TWI0)>;
 		};
 
 		spi0_pins: spi0-pins {
@@ -87,10 +88,40 @@
 			drive-strength = <3>;
 			allwinner,pull = "pull_up";
 		};
+
+		lcd_rgb_pins: lcd-rgb-pins {
+			pinmux = <SUN8I_V3S_PINMUX(PORT_E,  0, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E,  1, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E,  2, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E,  3, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E,  4, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E,  5, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E,  6, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E,  7, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E,  8, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E,  9, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 10, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 11, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 12, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 13, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 14, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 15, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 16, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 17, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 18, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 19, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 23, FUNC_LCD)>,
+				 <SUN8I_V3S_PINMUX(PORT_E, 24, FUNC_LCD)>;
+			drive-strength = <3>;
+		};
 	};
 };
 
 &gpiob {
+	status = "okay";
+};
+
+&gpioe {
 	status = "okay";
 };
 
@@ -155,4 +186,45 @@
 
 &rtc {
 	status = "okay";
+};
+
+&display_clocks {
+	status = "okay";
+};
+
+&mixer0 {
+	status = "okay";
+	width = <800>;
+	height = <480>;
+	pixel-format = <PANEL_PIXEL_FORMAT_RGB_565>;
+};
+
+&tcon0 {
+	status = "okay";
+	pinctrl-0 = <&lcd_rgb_pins>;
+	pinctrl-names = "default";
+	reset-gpios = <&gpiob 4 GPIO_ACTIVE_HIGH>;
+	display-timings {
+		compatible = "zephyr,panel-timing";
+		/*
+		 * AT050TN43 typical timings (datasheet):
+		 *   TH = 1059 CLK (THd=800, THb=259)
+		 *   TV = 525 H   (TVd=480, TVb=45)
+		 *   fclk = 33.6 MHz → 60.4 Hz frame rate
+		 *
+		 * H blanking: hsync(10) + hbp(209) + hfp(40) = 259
+		 * V blanking: vsync(5)  + vbp(20)  + vfp(20) = 45
+		 */
+		pixelclk-active = <0>;
+		hsync-active = <0>;
+		vsync-active = <0>;
+		de-active = <1>;
+		hsync-len = <10>;
+		hback-porch = <209>;
+		hfront-porch = <40>;
+		vsync-len = <5>;
+		vback-porch = <20>;
+		vfront-porch = <20>;
+		clock-frequency = <33600000>;
+	};
 };
