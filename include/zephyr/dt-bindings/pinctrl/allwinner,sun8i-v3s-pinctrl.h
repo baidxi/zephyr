@@ -59,6 +59,8 @@
 #define FUNC_PF_UART0	3	/* PF2=TX, PF4=RX */
 
 #define FUNC_PB_UART0 3
+#define FUNC_PB_PWM	2	/* PB4=PWM0, PB5=PWM1 */
+
 /* Port G functions — verified against Linux pinctrl-sun8i-v3s.c */
 #define FUNC_PG_MMC1	2	/* PG0=CLK, PG1=CMD, PG2=D0, PG3=D1, PG4=D2, PG5=D3 */
 

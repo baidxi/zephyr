@@ -64,6 +64,11 @@
 				 <SUN8I_V3S_PINMUX(PORT_B, 7, FUNC_PB_TWI0)>;
 		};
 
+		pwm_pins: pwm-pins {
+			pinmux = <SUN8I_V3S_PINMUX(PORT_B, 4, FUNC_PB_PWM)>,
+				 <SUN8I_V3S_PINMUX(PORT_B, 5, FUNC_PB_PWM)>;
+		};
+
 		spi0_pins: spi0-pins {
 			pinmux = <SUN8I_V3S_PINMUX(PORT_C, 0, FUNC_PC_SPI0)>,
 				 <SUN8I_V3S_PINMUX(PORT_C, 1, FUNC_PC_SPI0)>,
@@ -184,6 +189,12 @@
 	status = "okay";
 };
 
+&pwm {
+	pinctrl-0 = <&pwm_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
 &rtc {
 	status = "okay";
 };
@@ -203,7 +214,7 @@
 	status = "okay";
 	pinctrl-0 = <&lcd_rgb_pins>;
 	pinctrl-names = "default";
-	reset-gpios = <&gpiob 4 GPIO_ACTIVE_HIGH>;
+	backlight = <&pwm 0 1000>;
 	display-timings {
 		compatible = "zephyr,panel-timing";
 		/*

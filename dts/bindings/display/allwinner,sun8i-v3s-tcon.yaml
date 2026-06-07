@@ -63,6 +63,21 @@ properties:
       When specified, the GPIO is configured as output and set HIGH when the
       TCON output is enabled, LOW when disabled.
 
+  backlight:
+    type: phandle-array
+    specifier-space: pwm
+    required: false
+    description: |
+      Optional PWM-based backlight control. References the PWM controller
+      with channel and period cells (from #pwm-cells of the PWM node).
+      The driver interprets the period cell value as frequency in Hz
+      (overrides the PWM binding's nanosecond convention).
+      Example for Lichee Zero (PB4 = PWM0, 1000 Hz):
+        backlight = <&pwm 0 1000>;
+      When specified, the driver uses PWM duty cycle to control brightness.
+      This replaces reset-gpios for boards where the backlight enable pin
+      is shared with a PWM output.
+
 child-binding:
   description: |
     Panel timing configuration child node.

@@ -54,3 +54,5 @@ CONFIG_RTC=y
 
 # Cache management for framebuffer DMA coherency (DE2 ↔ DDR)
 CONFIG_CACHE_MANAGEMENT=y
+
+CONFIG_PWM=y

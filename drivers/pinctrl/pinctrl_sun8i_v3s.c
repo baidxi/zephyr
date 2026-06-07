@@ -22,7 +22,7 @@ LOG_MODULE_REGISTER(pinctrl_sun8i_v3s, LOG_LEVEL_WRN);
 #define DRV_REG_OFF(pin)	((pin >= 16) ? 0x18 : 0x14)
 #define PULL_REG_OFF(pin)	((pin >= 16) ? 0x20 : 0x1C)
 #define CFG_PIN_SHIFT(pin)	((pin % 8) * 4)
-#define CFG_PIN_MASK(pin)	(0x7 << CFG_PIN_SHIFT(pin))
+#define CFG_PIN_MASK(pin)	(0xF << CFG_PIN_SHIFT(pin))
 #define DRV_PIN_SHIFT(pin)	(((pin >= 16) ? (pin - 16) : pin) * 2)
 #define DRV_PIN_MASK(pin)	(0x3 << DRV_PIN_SHIFT(pin))
 #define PULL_PIN_SHIFT(pin)	(((pin >= 16) ? (pin - 16) : pin) * 2)

@@ -1,0 +1,14 @@
+# Allwinner V3s PWM configuration options
+
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config PWM_V3S
+	bool "Allwinner V3s PWM driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_PWM_ENABLED
+	select PINCTRL
+	help
+	  Enable PWM driver for Allwinner V3s SoC.
+	  The PWM module has 2 channels, each with a 16-bit counter
+	  clocked from the internal 24 MHz oscillator.
