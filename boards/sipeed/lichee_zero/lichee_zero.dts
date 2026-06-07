@@ -239,3 +239,11 @@
 		clock-frequency = <33600000>;
 	};
 };
+
+&codec {
+	status = "okay";
+};
+
+&codec_analog {
+	status = "okay";
+};

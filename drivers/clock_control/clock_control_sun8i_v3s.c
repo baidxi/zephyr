@@ -216,6 +216,7 @@ static const struct sun8i_clock_gate_info sun8i_clock_gate_info[] = {
 	CLK_GATE(CLK_BUS_DBG, 0x70, 7),
 	CLK_GATE(CLK_USB_PHY0, 0xcc, 8),
 	CLK_GATE(CLK_USB_OHCI0, 0xcc, 16),
+	CLK_GATE(CLK_AC_DIG, 0x140, 31),
 };
 
 /*

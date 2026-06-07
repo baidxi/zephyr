@@ -1,0 +1,16 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner V3s audio codec analog controls
+
+compatible: "allwinner,sun8i-v3s-codec-analog"
+
+include: [base.yaml]
+
+properties:
+  reg:
+    required: true
+    description: |
+      Base address and size of the AC_PR_CFG analog bridge register.
+      This is a single 32-bit register at physical address 0x01c23000
+      used for indirect read/write access to analog control registers.

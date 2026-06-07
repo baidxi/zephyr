@@ -45,14 +45,12 @@ static struct lli_pool lli_pools[VCHAN_COUNT] __aligned(4);
 static void dma_cache_maintain(struct sun8i_v3s_dma_stream *stream,
 			       bool after_xfer);
 
-/* --------------------------------------------------------------------------
- * Helper: convert Zephyr burst/width to hardware encoding
- * -------------------------------------------------------------------------- */
 static int convert_burst(uint32_t bytes)
 {
 	switch (bytes) {
-	case 1:  return 0;
-	case 8:  return 2;
+	case 1:  return 0;	/* 1 beat (single)  */
+	case 4:  return 1;	/* 4 beats          */
+	case 8:  return 2;	/* 8 beats          */
 	default: return -EINVAL;
 	}
 }
@@ -67,9 +65,6 @@ static int convert_buswidth(uint32_t bytes)
 	}
 }
 
-/* --------------------------------------------------------------------------
- * Descriptor linked-list management
- * -------------------------------------------------------------------------- */
 static void lli_chain(struct sun8i_v3s_dma_lli *prev,
 		      struct sun8i_v3s_dma_lli *next,
 		      uintptr_t next_phy,
@@ -87,9 +82,6 @@ static void lli_chain(struct sun8i_v3s_dma_lli *prev,
 	next->v_lli_next = NULL;
 }
 
-/* --------------------------------------------------------------------------
- * Build configuration word from dma_config + direction
- * -------------------------------------------------------------------------- */
 static int build_cfg(const struct device *dev, struct dma_config *cfg, uint32_t *lli_cfg)
 {
 	uint32_t src_width, dst_width, src_burst, dst_burst;
@@ -183,10 +175,6 @@ static int build_cfg(const struct device *dev, struct dma_config *cfg, uint32_t 
 	return 0;
 }
 
-/* --------------------------------------------------------------------------
- * DMA driver API
- * -------------------------------------------------------------------------- */
-
 static int sun8i_v3s_dma_config(const struct device *dev, uint32_t channel,
 				struct dma_config *cfg)
 {
@@ -265,9 +253,18 @@ static int sun8i_v3s_dma_config(const struct device *dev, uint32_t channel,
 		prev = lli;
 		pool->count++;
 		blk = blk->next_block;
-	}
-
-	stream->dma_callback = cfg->dma_callback;
+		}
+	
+		/* For cyclic mode: link last LLI back to first for continuous loop */
+		if (cfg->cyclic && pool->count > 1) {
+			struct sun8i_v3s_dma_lli *first = &pool->lli[0];
+			struct sun8i_v3s_dma_lli *last = &pool->lli[pool->count - 1];
+	
+			last->p_lli_next = (uintptr_t)first;
+			last->v_lli_next = first;
+		}
+	
+		stream->dma_callback = cfg->dma_callback;
 	stream->user_data = cfg->user_data;
 	stream->port = (uint8_t)cfg->dma_slot;
 	stream->cyclic = cfg->cyclic;
@@ -493,14 +490,16 @@ static int sun8i_v3s_dma_get_status(const struct device *dev, uint32_t channel,
 	return 0;
 }
 
-/* --------------------------------------------------------------------------
- * Cache maintenance helper — walk LLI chain and flush/invalidate buffers
- * -------------------------------------------------------------------------- */
 static void dma_cache_maintain(struct sun8i_v3s_dma_stream *stream, bool after_xfer)
 {
 	const struct sun8i_v3s_dma_lli *lli = stream->desc->v_lli;
+	const struct sun8i_v3s_dma_lli * const first = lli;
 
-	while (lli != NULL) {
+	/* Iterate through LLI chain. For cyclic mode the last LLI's
+	 * v_lli_next points back to the first, so we must detect the
+	 * wrap-around to avoid an infinite loop.
+	 */
+	for (int i = 0; lli != NULL && i < LLI_POOL_SIZE; i++) {
 		if (stream->direction == MEMORY_TO_MEMORY) {
 			if (!after_xfer) {
 				/* Before DMA: flush src to memory */
@@ -529,12 +528,12 @@ static void dma_cache_maintain(struct sun8i_v3s_dma_stream *stream, bool after_x
 		}
 
 		lli = lli->v_lli_next;
+		if (lli == first) {
+			break;	/* Cyclic wrap-around */
+		}
 	}
 }
 
-/* --------------------------------------------------------------------------
- * Interrupt handler
- * -------------------------------------------------------------------------- */
 static void sun8i_v3s_dma_isr(const void *dev)
 {
 	struct sun8i_v3s_dma_data *data = ((const struct device *)dev)->data;
@@ -568,6 +567,12 @@ static void sun8i_v3s_dma_isr(const void *dev)
 
 		if (stream->cyclic) {
 			if (chan_pend & (DMA_IRQ_PKG << (i * DMA_IRQ_WIDTH))) {
+				/* Invalidate cache for RX (PERIPHERAL_TO_MEMORY)
+				 * so CPU sees DMA-written data.
+				 */
+				if (stream->direction == PERIPHERAL_TO_MEMORY) {
+					dma_cache_maintain(stream, true);
+				}
 				if (stream->dma_callback) {
 					stream->dma_callback(dev,
 						stream->user_data,
@@ -604,9 +609,6 @@ static void sun8i_v3s_dma_isr(const void *dev)
 	}
 }
 
-/* --------------------------------------------------------------------------
- * Work handler: start any queued transfers on freed physical channels
- * -------------------------------------------------------------------------- */
 static void sun8i_v3s_dma_work(struct k_work *work)
 {
 	struct sun8i_v3s_dma_data *data =
@@ -661,10 +663,6 @@ static void sun8i_v3s_dma_work(struct k_work *work)
 
 	k_spin_unlock(&data->lock, key);
 }
-
-/* --------------------------------------------------------------------------
- * Initialization
- * -------------------------------------------------------------------------- */
 
 struct sun8i_v3s_dma_config {
 	const struct device *clock_dev;
@@ -726,10 +724,6 @@ static int sun8i_v3s_dma_init(const struct device *dev)
 
 	return 0;
 }
-
-/* --------------------------------------------------------------------------
- * API table and driver instantiation
- * -------------------------------------------------------------------------- */
 
 static const struct dma_driver_api sun8i_v3s_dma_api = {
 	.config = sun8i_v3s_dma_config,

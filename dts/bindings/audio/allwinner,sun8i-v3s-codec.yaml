@@ -1,0 +1,63 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner V3s internal audio codec
+
+compatible: "allwinner,sun8i-v3s-codec"
+
+include: [base.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+    description: |
+      Base address and size of the audio codec digital register space.
+
+  interrupts:
+    required: true
+    description: |
+      Codec interrupt specifier.
+
+  clocks:
+    required: true
+    description: |
+      Clock specifiers for the codec:
+      - Clock 0: Bus clock (CLK_BUS_CODEC) for APB register access gating
+      - Clock 1: Module clock (CLK_AC_DIG) for PLL_AUDIO derived audio clock
+
+  clock-names:
+    required: true
+    description: |
+      Names for the clock specifiers:
+      - "apb": Bus clock for register access
+      - "codec": Module clock for audio processing
+
+  resets:
+    type: phandle-array
+    required: true
+    description: |
+      Reset specifier for the codec (RST_BUS_CODEC).
+
+  dmas:
+    type: phandle-array
+    required: true
+    description: |
+      DMA specifiers for the codec:
+      - DMA 0: RX (ADC) DMA channel
+      - DMA 1: TX (DAC) DMA channel
+
+  dma-names:
+    type: string-array
+    required: true
+    description: |
+      Names for the DMA specifiers:
+      - "rx": ADC DMA channel
+      - "tx": DAC DMA channel
+
+  allwinner,codec-analog-controls:
+    type: phandle
+    required: true
+    description: |
+      Phandle to the codec-analog node which provides access
+      to the AC_PR_CFG analog bridge register for reading/writing
+      analog control registers.

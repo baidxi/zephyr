@@ -21,3 +21,4 @@ supported:
   - rtc
   - display
   - pwm
+  - audio

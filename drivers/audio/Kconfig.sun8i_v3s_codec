@@ -1,0 +1,13 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config AUDIO_CODEC_SUN8I_V3S
+	bool "Allwinner V3s internal audio codec"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_CODEC_ENABLED
+	select CLOCK_CONTROL
+	select RESET
+	help
+	  Enable the Allwinner V3s internal audio codec driver.
+	  This codec provides stereo DAC playback and stereo ADC recording.
+	  The driver currently supports DAC playback only.
