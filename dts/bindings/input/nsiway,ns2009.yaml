@@ -1,0 +1,62 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: NSIWAY NS2009 4-wire resistive touchscreen controller
+
+compatible: "nsiway,ns2009"
+
+include: ["i2c-device.yaml", "touchscreen-common.yaml"]
+
+properties:
+  touch-threshold:
+    type: int
+    default: 200
+    description: |
+      Z1 pressure threshold for touch detection.
+      When the Z1 ADC value exceeds this threshold, a touch is detected.
+
+  poll-period-ms:
+    type: int
+    default: 15
+    description: |
+      Polling period in milliseconds for Z1 pressure detection.
+      Typical values: 10-20ms (50-100Hz sampling rate).
+
+  min-x:
+    type: int
+    default: 0
+    description: |
+      Minimum raw X ADC value for coordinate calibration.
+      This value is obtained from the leftmost touch position.
+
+  min-y:
+    type: int
+    default: 0
+    description: |
+      Minimum raw Y ADC value for coordinate calibration.
+      This value is obtained from the topmost touch position.
+
+  max-x:
+    type: int
+    default: 4095
+    description: |
+      Maximum raw X ADC value for coordinate calibration.
+      This value is obtained from the rightmost touch position.
+
+  max-y:
+    type: int
+    default: 4095
+    description: |
+      Maximum raw Y ADC value for coordinate calibration.
+      This value is obtained from the bottommost touch position.
+
+  release-timeout-ms:
+    type: int
+    default: 100
+    description: |
+      Release detection timeout in milliseconds.
+      After a touch is detected, a timer is started with this period.
+      On each poll where touch is still detected, the timer is rescheduled.
+      When the timer expires (no touch update for this duration),
+      BTN_TOUCH=0 is sent to signal finger lift.
+      This provides robust release detection independent of Z1 noise.

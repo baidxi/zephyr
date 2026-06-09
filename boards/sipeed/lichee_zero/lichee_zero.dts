@@ -21,6 +21,12 @@
 		zephyr,shell-uart = &uart0;
 		zephyr,sram = &ddr0;
 		zephyr,entropy = &rng;
+		zephyr,display = &mixer0;
+	};
+
+	lvgl_pointer {
+		compatible = "zephyr,lvgl-pointer-input";
+		input = <&ns2009>;
 	};
 
 	leds {
@@ -149,6 +155,27 @@
 	pinctrl-0 = <&i2c0_pins>;
 	pinctrl-names = "default";
 	status = "okay";
+	ns2009: ns2009@24 {
+		compatible = "nsiway,ns2009";
+		reg = <0x48>;
+		status = "okay";
+		screen-width = <800>;
+		screen-height = <600>;
+		inverted-y;		/* CH4 vertical axis: raw top=large, bottom=small */
+		touch-threshold = <200>;
+		poll-period-ms = <15>;
+		release-timeout-ms = <100>;
+		/*
+		 * Calibration from touch data analysis:
+		 *   X (CH5 horizontal): left~250  right~3950  (working well)
+		 *   Y (CH4 vertical):   top~3750  bottom~280
+		 *   Adjusted min-y/max-y to reduce center Y offset
+		 */
+		min-x = <100>;
+		max-x = <4000>;
+		min-y = <0>;
+		max-y = <3600>;
+	};
 };
 
 &usbphy {
@@ -157,8 +184,14 @@
 	status = "okay";
 };
 
-&usbotg {
+zephyr_udc0:&usbotg {
 	status = "okay";
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "USB CDC ACM";
+		tx-fifo-size = <4096>;
+		rx-fifo-size = <4096>;
+	};
 };
 
 &mmc0 {
@@ -206,7 +239,7 @@
 &mixer0 {
 	status = "okay";
 	width = <800>;
-	height = <480>;
+	height = <600>;
 	pixel-format = <PANEL_PIXEL_FORMAT_RGB_565>;
 };
 
@@ -217,26 +250,17 @@
 	backlight = <&pwm 0 1000>;
 	display-timings {
 		compatible = "zephyr,panel-timing";
-		/*
-		 * AT050TN43 typical timings (datasheet):
-		 *   TH = 1059 CLK (THd=800, THb=259)
-		 *   TV = 525 H   (TVd=480, TVb=45)
-		 *   fclk = 33.6 MHz → 60.4 Hz frame rate
-		 *
-		 * H blanking: hsync(10) + hbp(209) + hfp(40) = 259
-		 * V blanking: vsync(5)  + vbp(20)  + vfp(20) = 45
-		 */
 		pixelclk-active = <0>;
 		hsync-active = <0>;
 		vsync-active = <0>;
 		de-active = <1>;
-		hsync-len = <10>;
-		hback-porch = <209>;
+		hsync-len = <128>;
+		hback-porch = <88>;
 		hfront-porch = <40>;
-		vsync-len = <5>;
-		vback-porch = <20>;
-		vfront-porch = <20>;
-		clock-frequency = <33600000>;
+		vsync-len = <4>;
+		vback-porch = <23>;
+		vfront-porch = <1>;
+		clock-frequency = <40000000>;
 	};
 };
 
