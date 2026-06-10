@@ -1050,7 +1050,7 @@ static int sun8i_codec_init(const struct device *dev)
 	return 0;
 }
 
-static const struct audio_codec_api sun8i_codec_driver_api = {
+static DEVICE_API(audio_codec, sun8i_codec_driver_api) = {
 	.configure = codec_configure,
 	.start_output = codec_start_output,
 	.stop_output = codec_stop_output,
