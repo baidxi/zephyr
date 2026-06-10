@@ -255,6 +255,13 @@ int ext2_verify_disk_superblock(struct ext2_disk_superblock *sb)
 		return -ENOTSUP;
 	}
 
+	/* Reject zero divisors used during block-group and inode lookup. */
+	if (sys_le32_to_cpu(sb->s_blocks_per_group) == 0 ||
+	    sys_le32_to_cpu(sb->s_inodes_per_group) == 0) {
+		LOG_ERR("Invalid superblock: s_blocks_per_group or s_inodes_per_group is zero");
+		return -EINVAL;
+	}
+
 	/* Check if file system may contain errors. */
 	if (sys_le16_to_cpu(sb->s_state) == EXT2_ERROR_FS) {
 		LOG_WRN("File system may contain errors.");
@@ -720,15 +727,16 @@ ssize_t ext2_inode_write(struct ext2_inode *inode, const void *buf, uint32_t off
 		}
 
 		written += to_write;
+		offset += to_write;
 	}
 
 	if (rc < 0) {
 		return rc;
 	}
 
-	if (offset + written > inode->i_size) {
-		LOG_DBG("New inode size: %d -> %zd", inode->i_size, offset + written);
-		inode->i_size = offset + written;
+	if (offset > inode->i_size) {
+		LOG_DBG("New inode size: %d -> %u", inode->i_size, offset);
+		inode->i_size = offset;
 		rc = ext2_commit_inode(inode);
 		if (rc < 0) {
 			return rc;

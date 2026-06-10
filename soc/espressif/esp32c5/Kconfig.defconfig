@@ -4,7 +4,7 @@
 if SOC_SERIES_ESP32C5
 
 configdefault CACHE_MANAGEMENT
-	default y if ESP_SPIRAM
+	default y
 
 choice CACHE_TYPE
 	default EXTERNAL_CACHE if CACHE_MANAGEMENT
@@ -34,12 +34,6 @@ config PMP_SLOTS
 # Use unlocked entries with MPRV-based enforcement instead.
 config PMP_NO_LOCK_GLOBAL
 	default y
-
-config FLASH_SIZE
-	default $(dt_node_reg_size_int,/soc/flash-controller@60002000/flash@0,0)
-
-config FLASH_BASE_ADDRESS
-	default $(dt_node_reg_addr_hex,/soc/flash-controller@60002000/flash@0)
 
 config MAIN_STACK_SIZE
 	default 2048

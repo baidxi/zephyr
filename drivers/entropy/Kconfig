@@ -16,6 +16,7 @@ source "subsys/logging/Kconfig.template.log_config"
 
 # zephyr-keep-sorted-start
 source "drivers/entropy/Kconfig.ambiq"
+source "drivers/entropy/Kconfig.ameba"
 source "drivers/entropy/Kconfig.arm64"
 source "drivers/entropy/Kconfig.b91"
 source "drivers/entropy/Kconfig.bee"
