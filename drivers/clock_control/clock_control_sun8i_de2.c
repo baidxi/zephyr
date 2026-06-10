@@ -22,6 +22,7 @@
 #include <zephyr/spinlock.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/__assert.h>
+#include <zephyr/kernel.h>
 
 LOG_MODULE_REGISTER(de2_ccu, CONFIG_LOG_DEFAULT_LEVEL);
 
