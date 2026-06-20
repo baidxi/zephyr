@@ -1,0 +1,11 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config RTC_SUN20I_D1
+	bool "Allwinner SUN20I D1 / SUN8I T113 RTC driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN20I_D1_RTC_ENABLED
+	help
+	  Enable RTC driver for Allwinner D1 / T113-S3 SoC.
+	  This driver uses the linear-day counter mode with
+	  comparator-based alarm (RTC_LINEAR_DAY in Linux terms).

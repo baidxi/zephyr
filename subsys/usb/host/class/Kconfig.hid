@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config USBH_HID_CLASS
+	bool "USB HID Class driver (keyboard/mouse)"
+	help
+	  USB Human Interface Device (HID) Class driver for the USB host stack.
+	  Supports Boot Protocol keyboards and mice connected either directly
+	  to the host controller or through a hub.  Input reports are delivered
+	  through a user-registered callback (see usbh_hid_register_report_cb()).
+
+config USBH_HID_MAX_DEVICES
+	int "Maximum number of HID devices supported"
+	default 4
+	range 1 16
+	depends on USBH_HID_CLASS
+	help
+	  Maximum number of HID devices that can be simultaneously managed.

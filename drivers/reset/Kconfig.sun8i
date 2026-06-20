@@ -19,3 +19,19 @@ config RESET_SUN8I_DE2
 	  Enable support for Allwinner DE2 CCU reset controller.
 	  This driver provides reset control for DE2 Mixer, Write-Back,
 	  and Rotation modules within the Display Engine subsystem.
+
+config RESET_SUN20I_D1
+	bool "Allwinner Sun20i D1 / T113-S3 CCU reset controller driver"
+	depends on DT_HAS_ALLWINNER_SUN20I_D1_CCU_RESET_ENABLED
+	default y
+	help
+	  Enable support for the Allwinner D1 / T113-S3 CCU reset
+	  controller.  This driver provides assert / deassert / toggle
+	  control for the SoC's peripheral reset lines.  It is modelled
+	  as a child node of the CCU clock controller and shares its
+	  register bank.  Reset bits are active-low.
+
+	  line_toggle() performs a clock-domain-synchronised reset release:
+	  it enables the bus-clock gate, waits for the clock to stabilise,
+	  then deasserts the reset line.  This matches the Linux 8250_dw
+	  driver, which only deasserts the UART reset at probe time.

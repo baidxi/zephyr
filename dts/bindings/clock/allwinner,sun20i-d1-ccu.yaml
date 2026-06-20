@@ -1,0 +1,43 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner D1 / T113-S3 Clock Control Unit (CCU)
+
+  The CCU manages all clocks: PLLs, bus clocks, and peripheral clocks.
+  Provides clock gating, division, multiplexing, and reset control.
+
+  Usage:
+    #include <zephyr/dt-bindings/clock/sun20i-d1-ccu.h>
+    uart0: uart@2500000 {
+        clocks = <&ccu CLK_BUS_UART0>;
+        resets = <&ccu RST_BUS_UART0>;
+    };
+
+compatible: "allwinner,sun20i-d1-ccu"
+
+include: [clock-controller.yaml, base.yaml]
+
+properties:
+  reg:
+    required: true
+
+  clocks:
+    type: phandle-array
+    required: true
+
+  clock-names:
+    type: string-array
+    required: true
+
+  "#clock-cells":
+    const: 1
+
+  "#reset-cells":
+    type: int
+    const: 1
+
+clock-cells:
+  - clk-id
+reset-cells:
+  - id

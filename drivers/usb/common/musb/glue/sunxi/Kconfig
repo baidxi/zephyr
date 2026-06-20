@@ -4,9 +4,20 @@
 config MUSB_GLUE_SUNXI
 	bool "Allwinner Sunxi MUSB glue layer"
 	default y
-	depends on DT_HAS_ALLWINNER_SUN8I_V3S_MUSB_ENABLED
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_MUSB_ENABLED || DT_HAS_ALLWINNER_SUN20I_D1_MUSB_ENABLED
 	select MUSB
 	help
 	  Allwinner Sunxi MUSB glue layer.
 	  Provides register mapping and platform operations for
 	  Allwinner V3s/H3 SoCs.
+
+config MUSB_SUNXI_FORCE_FULLSPEED
+	bool "Force USB Full-Speed mode (disable High-Speed)"
+	depends on MUSB_GLUE_SUNXI
+	help
+	  Forces the MUSB controller to operate at Full-Speed (12 Mbps)
+	  only, skipping the HS chirp handshake.  Use this as a diagnostic
+	  when debugging HS-specific EPROTO (-71) errors: if the device
+	  enumerates correctly at FS with this enabled, the root cause
+	  lies in the PHY high-speed calibration path rather than the
+	  MUSB data path.

@@ -136,9 +136,12 @@ static int sun8i_set_alarm(const struct device *dev, uint8_t chan_id,
 	}
 	ctrl |= (cfg->prescaler << TMR_CLK_PRES_SHIFT);
 
-	if (!absolute) {
+	if (absolute) {
+		/* Absolute alarm: convert target counter value to the
+		 * remaining down-count for the interval register. */
 		ticks = sun8i_read(dev) - ticks;
 	}
+	/* Relative alarm: INTV = ticks (duration for down-counter) */
 	sys_write32(ticks, cfg->base + TMR_INTV_REG(cfg->chan_id));
 	sys_write32(ctrl | TMR_RELOAD, cfg->base + TMR_CTRL_REG(cfg->chan_id));
 	sys_set_bit(cfg->base + TMR_IRQ_EN_REG, cfg->chan_id);
@@ -212,10 +215,10 @@ static DEVICE_API(counter, sun8i_api) = {
 #define SUN8I_INIT(n)								\
 	static void sun8i_irq_config_##n(const struct device *dev)		\
 	{									\
-		IRQ_CONNECT(DT_IRQ_BY_IDX(PARENT(n), 0, irq),			\
-			    DT_IRQ_BY_IDX(PARENT(n), 0, priority),		\
+		IRQ_CONNECT(DT_INST_IRQ_BY_IDX(n, 0, irq),			\
+			    DT_INST_IRQ_BY_IDX(n, 0, priority),			\
 			    sun8i_isr, DEVICE_DT_INST_GET(n), 0);		\
-		irq_enable(DT_IRQ_BY_IDX(PARENT(n), 0, irq));			\
+		irq_enable(DT_INST_IRQ_BY_IDX(n, 0, irq));			\
 	}									\
 										\
 	static int sun8i_init_##n(const struct device *dev)			\

@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config USBH_MSC_CLASS
+	bool "USB Mass Storage Class driver"
+	select DISK_ACCESS
+	help
+	  USB Mass Storage Class (MSC) driver for the USB host stack.
+	  Supports Bulk-Only Transport (BOT) protocol with SCSI transparent
+	  command set.  USB flash drives, external hard drives, and card
+	  readers are automatically detected, enumerated, and registered
+	  as disk devices accessible through the disk_access API and
+	  filesystem layers (FATFS, LittleFS, etc.).
+
+config USBH_MSC_MAX_DEVICES
+	int "Maximum number of MSC devices supported"
+	default 2
+	range 1 8
+	depends on USBH_MSC_CLASS
+	help
+	  Maximum number of MSC devices that can be simultaneously managed.
+	  Each MSC device instance corresponds to one USBH_DEFINE_CLASS entry
+	  and can bind to one USB interface at a time.
+
+config USBH_MSC_MAX_LUNS
+	int "Maximum number of LUNs per MSC device"
+	default 4
+	range 1 16
+	depends on USBH_MSC_CLASS
+	help
+	  Maximum number of Logical Units (LUNs) per MSC device.
+	  Most single-slot USB flash drives have 1 LUN (index 0), but
+	  multi-slot card readers may expose several.
+
+config USBH_MSC_MAX_XFER_SIZE
+	int "Maximum single bulk transfer size in bytes"
+	default 4096
+	range 512 65536
+	depends on USBH_MSC_CLASS
+	help
+	  Maximum payload (in bytes) of a single USB bulk transfer request.
+	  Larger read/write requests are automatically split into chunks
+	  of at most this size.  This bounds the size of intermediate
+	  net_buf allocations.  Should be a multiple of 512 (sector size)
+	  and a multiple of the bulk endpoint max packet size.

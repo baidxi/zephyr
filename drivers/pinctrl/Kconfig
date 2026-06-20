@@ -96,6 +96,7 @@ source "drivers/pinctrl/Kconfig.xlnx"
 source "drivers/pinctrl/Kconfig.xmc4xxx"
 source "drivers/pinctrl/Kconfig.zynqmp"
 source "drivers/pinctrl/Kconfig.sun8i_v3s"
+source "drivers/pinctrl/Kconfig.sun20i_d1"
 # zephyr-keep-sorted-stop
 
 rsource "renesas/Kconfig"

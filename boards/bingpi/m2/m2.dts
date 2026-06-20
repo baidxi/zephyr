@@ -1,0 +1,103 @@
+/*
+ * Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <arm/armv7-a.dtsi>
+#include <allwinner/sun8i-t113s3.dtsi>
+
+/ {
+	model = "BingPi M2";
+	compatible = "bingpi,m2", "allwinner,sun8i-t113s3";
+
+	chosen {
+		zephyr,console = &uart3;
+		zephyr,shell-uart = &uart3;
+		zephyr,sram = &ddr0;
+	};
+};
+
+&usbphy {
+	dr-mode = "otg";
+	status = "okay";
+};
+
+zephyr_udc0:&usbotg {
+	status = "okay";
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "USB CDC ACM";
+		tx-fifo-size = <4096>;
+		rx-fifo-size = <4096>;
+	};
+};
+
+&gpiob { 
+	status = "okay";
+};
+
+&gpioe { 
+	status = "okay";
+};
+
+&gpiof { 
+	status = "okay";
+};
+
+&gpiog { 
+	status = "okay";
+};
+
+&pio {
+    status = "okay";
+    default_state {
+        uart3_pins: uart3-pins {
+            /* PB6/PB7 uart3 -> SELECT 7 (per-pin) */
+            pinmux = <SUNXI_PINMUX(PB6, SUN8I_FUNC_UART3)>,
+                     <SUNXI_PINMUX(PB7, SUN8I_FUNC_UART3)>;
+        };
+    };
+};
+
+&uart3 {
+    pinctrl-0 = <&uart3_pins>;
+    pinctrl-names = "default";
+    status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&rtc {
+    status = "okay";
+};
+
+&hwspinlock { 
+	status = "okay"; 
+};
+
+&ohci1 {
+	status = "okay";
+};
+
+&ehci1 {
+	status = "okay";
+};
+
+&mmc0 {
+	status = "okay";
+
+	mmc {
+		compatible = "zephyr,sdmmc-disk";
+		disk-name = "SD";
+		status = "okay";
+	};
+};
+
+&mmc2 {
+	status = "okay";
+};

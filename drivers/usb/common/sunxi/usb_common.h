@@ -25,7 +25,8 @@
  * Phase 2: add other MUSB/EHCI/OHCI compatibles.
  */
 #define SUNXI_USB_COMPATIBLES \
-	allwinner_sun8i_v3s_musb
+	allwinner_sun8i_v3s_musb, \
+	allwinner_sun20i_d1_musb
 
 /* Obtain the PHY node for a USB controller from its "phys" property */
 #define USB_SUNXI_PHY(usb_node) \

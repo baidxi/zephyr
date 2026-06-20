@@ -1,0 +1,53 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SUN8I_T113S3
+	bool
+
+config SOC
+	default "sun8i_t113s3" if SOC_SUN8I_T113S3
+
+if SOC_SUN8I_T113S3
+
+config T113_EARLY_PRINTK
+	bool "Early UART printk (T113-S3)"
+	help
+	  Route printk() output through a bare-metal UART driver before the
+	  Zephyr console subsystem is initialised.  The bootloader (SPL) must
+	  have already configured the selected UART (pins, baud rate, etc.).
+
+	  This is equivalent to Linux early_printk and useful for debugging
+	  early boot failures (clock, MMU, pinctrl).
+
+if T113_EARLY_PRINTK
+
+choice T113_EARLY_PRINTK_UART
+	prompt "Early printk UART"
+	default T113_EARLY_PRINTK_UART3
+	help
+	  Select which UART to use for early printk output.
+	  Must match the UART that the bootloader configured.
+
+config T113_EARLY_PRINTK_UART0
+	bool "UART0 (0x02500000)"
+
+config T113_EARLY_PRINTK_UART1
+	bool "UART1 (0x02500400)"
+
+config T113_EARLY_PRINTK_UART2
+	bool "UART2 (0x02500800)"
+
+config T113_EARLY_PRINTK_UART3
+	bool "UART3 (0x02500C00)"
+
+config T113_EARLY_PRINTK_UART4
+	bool "UART4 (0x02501000)"
+
+config T113_EARLY_PRINTK_UART5
+	bool "UART5 (0x02501400)"
+
+endchoice
+
+endif # T113_EARLY_PRINTK
+
+endif # SOC_SUN8I_T113S3

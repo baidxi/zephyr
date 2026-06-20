@@ -250,6 +250,7 @@
 				compatible = "allwinner,sun8i-v3s-counter";
 				reg = <0>;
 				clocks = <&osc24M>;
+				interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 				clock-source = <SUN8I_V3S_CLK_SRC_OSC24M>;
 				prescaler = <SUN8I_V3S_PRESCALER_DIV1>;
 				status = "disabled";
@@ -259,6 +260,7 @@
 				compatible = "allwinner,sun8i-v3s-counter";
 				reg = <1>;
 				clocks = <&osc24M>;
+				interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 				clock-source = <SUN8I_V3S_CLK_SRC_OSC24M>;
 				prescaler = <SUN8I_V3S_PRESCALER_DIV1>;
 				status = "disabled";
@@ -268,6 +270,7 @@
 				compatible = "allwinner,sun8i-v3s-counter";
 				reg = <2>;
 				clocks = <&osc24M>;
+				interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 				clock-source = <SUN8I_V3S_CLK_SRC_OSC24M>;
 				prescaler = <SUN8I_V3S_PRESCALER_DIV1>;
 				status = "disabled";

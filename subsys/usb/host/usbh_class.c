@@ -160,6 +160,10 @@ void usbh_class_probe_device(struct usb_device *const udev)
 			continue;
 		}
 
+		LOG_INF("Dev addr=%u iface=%u class=0x%02x sub=0x%02x proto=0x%02x",
+			udev->addr, iface, filter_data.class, filter_data.sub,
+			filter_data.proto);
+
 		usbh_class_probe_function(udev, &filter_data, iface);
 	}
 }
@@ -178,6 +182,11 @@ bool usbh_class_is_matching(const struct usbh_class_filter *const filter_rules,
 
 		if (rule->flags & USBH_CLASS_MATCH_VID_PID &&
 		    (filter_data->vid != rule->vid || filter_data->pid != rule->pid)) {
+			continue;
+		}
+
+		if (rule->flags & USBH_CLASS_MATCH_CODE &&
+		    filter_data->class != rule->class) {
 			continue;
 		}
 

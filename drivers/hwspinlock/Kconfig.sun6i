@@ -1,0 +1,13 @@
+# Allwinner SUN6I hardware spinlock configuration options
+
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config HWSPINLOCK_SUN6I
+	bool "Allwinner SUN6I HW spinlock driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN6I_A31_HWSPINLOCK_ENABLED
+	help
+	  Enable hardware spinlock driver for Allwinner SoCs with the
+	  SUN6I/A31-compatible spinlock IP.  Provides 32 hardware locks
+	  for cross-processor synchronization (e.g. ARM ↔ DSP).

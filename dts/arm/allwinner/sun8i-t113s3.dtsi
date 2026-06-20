@@ -1,0 +1,126 @@
+/*
+ * Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Allwinner T113-S3 (sun8i) SoC device tree.
+ * Dual-core ARM Cortex-A7 with GIC-400 and ARM arch timer.
+ */
+
+#include <arm/armv7-a.dtsi>
+#include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
+#include <zephyr/dt-bindings/pinctrl/allwinner,sun20i-d1-pinctrl.h>
+
+#include "sunxi-d1s-t113.dtsi"
+
+/ {
+	aliases {
+		sdhc0 = &mmc0;
+		sdhc1 = &mmc1;
+		sdhc2 = &mmc2;
+	};
+
+	interrupt-parent = <&gic>;
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a7";
+			device_type = "cpu";
+			reg = <0>;
+			clock-frequency = <DT_FREQ_M(1008)>;
+		};
+
+		cpu1: cpu@1 {
+			compatible = "arm,cortex-a7";
+			device_type = "cpu";
+			reg = <1>;
+			clock-frequency = <DT_FREQ_M(1008)>;
+		};
+	};
+
+	arch_timer: timer {
+		compatible = "arm,armv8-timer";
+		clock-frequency = <DT_FREQ_M(24)>;
+		status = "okay";
+		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 14 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 11 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 10 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-parent = <&gic>;
+	};
+
+	gic: interrupt-controller@3021000 {
+		compatible = "arm,gic-400", "arm,gic-v2", "arm,gic";
+		status = "okay";
+		reg = <0x03021000 0x1000>,
+		      <0x03022000 0x2000>,
+		      <0x03024000 0x2000>,
+		      <0x03026000 0x2000>;
+		interrupt-controller;
+		#interrupt-cells = <4>;
+		#address-cells = <0>;
+	};
+};
+
+/*
+	* T113-S3 MMC/SD pinctrl definitions.
+	* Pin groups live in the pio default_state container and are referenced
+	* by the mmc nodes below.
+	*
+	* SDC0 (mmc0): PF0-5, func 2 — SD card (4-bit)
+	* SDC1 (mmc1): PG0-5, func 2 — SDIO/WiFi (4-bit)
+	* SDC2 (mmc2): PC2-7, func 3 — eMMC (4-bit)
+	*/
+&pio {
+	default_state {
+		mmc0_pins: mmc0-pins {
+			pinmux = <SUNXI_PINMUX(PF0, SUN8I_FUNC_MMC0)>,	/* D1 */
+				 <SUNXI_PINMUX(PF1, SUN8I_FUNC_MMC0)>,	/* D0 */
+				 <SUNXI_PINMUX(PF2, SUN8I_FUNC_MMC0)>,	/* CLK */
+				 <SUNXI_PINMUX(PF3, SUN8I_FUNC_MMC0)>,	/* CMD */
+				 <SUNXI_PINMUX(PF4, SUN8I_FUNC_MMC0)>,	/* D3 */
+				 <SUNXI_PINMUX(PF5, SUN8I_FUNC_MMC0)>;	/* D2 */
+			allwinner,pull = "pull_up";
+			drive-strength = <2>;
+		};
+
+		mmc2_pins: mmc2-pins {
+			pinmux = <SUNXI_PINMUX(PC2, SUN8I_FUNC_MMC2)>,	/* CLK */
+				 <SUNXI_PINMUX(PC3, SUN8I_FUNC_MMC2)>,	/* CMD */
+				 <SUNXI_PINMUX(PC4, SUN8I_FUNC_MMC2)>,	/* D2 */
+				 <SUNXI_PINMUX(PC5, SUN8I_FUNC_MMC2)>,	/* D1 */
+				 <SUNXI_PINMUX(PC6, SUN8I_FUNC_MMC2)>,	/* D0 */
+				 <SUNXI_PINMUX(PC7, SUN8I_FUNC_MMC2)>;	/* D3 */
+			allwinner,pull = "pull_up";
+			drive-strength = <2>;
+		};
+	};
+};
+
+/*
+	* T113-S3 SD/MMC external DMA request routing + pinctrl.
+	* The base mmc0/1/2 nodes live in sunxi-d1s-t113.dtsi; here we attach the
+	* SoC DMA controller channels and pinctrl pin groups. The SMHC internal
+	* IDMAC is the primary data mover, but the dedicated DMA DRQ ports
+	* (47/48/49) are wired up so the external DMA engine can service SD/MMC
+	* when needed. RX and TX share a single DRQ port per instance, so one
+	* channel named "tx-rx".
+	*/
+&mmc0 {
+	pinctrl-0 = <&mmc0_pins>;
+	pinctrl-names = "default";
+	dmas = <&dma SUN20I_D1_DMA_DRQ_SDMMC0>;
+	dma-names = "tx-rx";
+};
+
+&mmc2 {
+	pinctrl-0 = <&mmc2_pins>;
+	pinctrl-names = "default";
+	dmas = <&dma SUN20I_D1_DMA_DRQ_SDMMC2>;
+	dma-names = "tx-rx";
+};

@@ -87,20 +87,27 @@ int usbh_req_setup(struct usb_device *const udev,
 		xfer->no_status = true;
 	}
 
+	/* Reset semaphore to prevent stale signals from previous transfers. */
+	k_sem_reset(&ch9_req_sync);
+
 	ret = usbh_xfer_enqueue(udev, xfer);
 	if (ret) {
 		goto buf_alloc_err;
 	}
 
 	if (k_sem_take(&ch9_req_sync, K_MSEC(SETUP_REQ_TIMEOUT)) != 0) {
-		ret = usbh_xfer_dequeue(udev, xfer);
-		if (ret != 0) {
-			LOG_ERR("Failed to cancel transfer");
-			return ret;
-		}
-
 		LOG_ERR("Timeout");
-		return -ETIMEDOUT;
+		/*
+		 * Dequeue the transfer.  This generates a cancel completion
+		 * event that will be processed asynchronously by the msgq
+		 * thread (calling ch9_req_cb which gives the semaphore).
+		 * Drain that stale semaphore so it does not affect the next
+		 * transfer, then free the xfer.
+		 */
+		usbh_xfer_dequeue(udev, xfer);
+		k_sem_take(&ch9_req_sync, K_MSEC(100));
+		ret = -ETIMEDOUT;
+		goto buf_alloc_err;
 	}
 
 	ret = xfer->err;

@@ -1,0 +1,20 @@
+# Copyright (c) 2026
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner D1 / T113s3 TWI (I2C) interface
+compatible: "allwinner,sun20i-d1-i2c"
+include: [i2c-controller.yaml, reset-device.yaml, pinctrl-device.yaml]
+properties:
+  reg:
+    required: true
+  interrupts:
+    required: true
+  clocks:
+    required: true
+  resets:
+    required: true
+  pinctrl-0:
+    required: true
+  pinctrl-names:
+    required: true

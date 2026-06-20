@@ -1,0 +1,37 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner D1 / T113-S3 Reset Controller (part of the CCU)
+
+  The reset controller is modelled as a child node of the CCU clock
+  controller.  It shares the CCU register bank and provides reset control
+  (assert / deassert) for the various peripherals.
+
+  Reset consumer nodes reference this controller with a single-cell
+  phandle that carries the reset ID, e.g.:
+
+    #include <zephyr/dt-bindings/reset/sun20i-d1-ccu.h>
+
+    uart3: uart@2500c00 {
+        resets = <&ccu_reset D1_RST_BUS_UART3>;
+    };
+
+  On Allwinner SoCs the bus reset bits are active-low: a bit value of 1
+  means "deasserted" (peripheral held out of reset) while 0 means
+  "asserted" (peripheral held in reset).
+
+compatible: "allwinner,sun20i-d1-ccu-reset"
+
+include: [reset-controller.yaml]
+
+properties:
+  "#reset-cells":
+    const: 1
+    description: |
+      Number of cells in a reset specifier.
+      Contains a single cell with the reset ID from
+      <zephyr/dt-bindings/reset/sun20i-d1-ccu.h>.
+
+reset-cells:
+  - id

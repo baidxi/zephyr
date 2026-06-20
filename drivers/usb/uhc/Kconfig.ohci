@@ -1,0 +1,14 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+config UHC_OHCI
+	bool "Generic OHCI USB host controller driver"
+	default y
+	depends on DT_HAS_GENERIC_OHCI_ENABLED
+	help
+	  Generic OHCI (Open Host Controller Interface) USB host
+	  controller driver.  Supports any standard OHCI-compliant
+	  controller for Full-Speed and Low-Speed devices.
+
+	  Platform-specific initialization (clocks, resets, PHY) is
+	  handled through Zephyr DT infrastructure.

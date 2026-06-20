@@ -25,6 +25,11 @@
 #include <zephyr/cache.h>
 #include <zephyr/sys/barrier.h>
 
+#if defined(CONFIG_SDHC_SUNXI_DMA) && defined(CONFIG_MMU)
+#include <zephyr/kernel/mm.h>
+#include <zephyr/arch/arm/mmu/arm_mem.h>
+#endif
+
 #include "sunxi_mmc_regs.h"
 
 LOG_MODULE_REGISTER(sdhc_sunxi, CONFIG_SDHC_LOG_LEVEL);
@@ -33,6 +38,72 @@ LOG_MODULE_REGISTER(sdhc_sunxi, CONFIG_SDHC_LOG_LEVEL);
 #define SUNXI_MMC_RESET_RETRIES		1000
 /* Timeout for polling operations in microseconds */
 #define SUNXI_MMC_POLL_TIMEOUT_US	100000
+
+/*
+ * SoC variant descriptor.
+ * Encapsulates the differences between V3s and T113-S3/D1 SMHC cores so
+ * the driver logic can branch at runtime without polluting the V3s path.
+ * The variant pointer is injected at compile time based on DT_DRV_COMPAT
+ * (see SDHC_VARIANT_GET below), so each binary only carries the variant(s)
+ * matching its enabled devicetree nodes.
+ */
+struct sunxi_mmc_variant {
+	uint32_t fifo_depth;		/* FIFO depth in 32-bit entries */
+	uint32_t fifo_size;		/* FIFO size in bytes */
+	uint32_t fifo_level_mask;	/* STATUS register FIFO_LEVEL field mask */
+	uint32_t fifo_level_shift;	/* STATUS register FIFO_LEVEL shift */
+	uint32_t ftrglevel_default;	/* default value for FTRGLEVEL (0x40) */
+	uint8_t des_addr_shift;		/* IDMAC desc addr shift: 0=byte(V3s), 2=word(T113/D1) */
+	bool has_access_done_direct;	/* GCTRL bit 30 exists (V3s only) */
+};
+
+/* V3s: 128-byte FIFO (32 entries), FIFO_LEVEL[21:17], bit30 present */
+static const __maybe_unused struct sunxi_mmc_variant sunxi_mmc_v3s_variant = {
+	.fifo_depth = SUNXI_MMC_FIFO_ENTRIES,
+	.fifo_size = SUNXI_MMC_FIFO_SIZE,
+	.fifo_level_mask = SUNXI_MMC_STATUS_FIFO_LEVEL_MASK,
+	.fifo_level_shift = SUNXI_MMC_STATUS_FIFO_LEVEL_SHIFT,
+	.ftrglevel_default = 0x20070008,
+	.des_addr_shift = 0,		/* V3s IDMAC uses byte addresses */
+	.has_access_done_direct = true,
+};
+
+/*
+ * Compile-time variant selection keyed on DT_DRV_COMPAT.
+ * Each DT_INST_FOREACH_STATUS_OKAY pass redefines DT_DRV_COMPAT, so
+ * SDHC_VARIANT_GET picks the matching instance automatically.
+ */
+#define SDHC_VARIANT_allwinner_sunxi_mmc	(&sunxi_mmc_v3s_variant)
+#define SDHC_VARIANT_GET(inst)			UTIL_CAT(SDHC_VARIANT_, DT_DRV_COMPAT)
+
+#ifdef CONFIG_SDHC_SUNXI_T113
+/* T113-S3 / D1: 1024-byte FIFO (256 entries), FIFO_LEVEL[25:17], no bit30 */
+static const __maybe_unused struct sunxi_mmc_variant sunxi_mmc_t113_variant = {
+	.fifo_depth = SUNXI_MMC_FIFO_ENTRIES_T113,
+	.fifo_size = SUNXI_MMC_FIFO_SIZE_T113,
+	.fifo_level_mask = SUNXI_MMC_STATUS_FIFO_LEVEL_MASK_T113,
+	.fifo_level_shift = SUNXI_MMC_STATUS_FIFO_LEVEL_SHIFT_T113,
+	/* SD-card (mmc0) FIFO threshold — match Linux
+	 * SUNXI_DMA_TL_SDMMC0 = (0x2<<28)|(7<<16)|248, identical across
+	 * all SDMMC0 variants (sunxi-mmc-v4p1x/v5p3x/sun50iw1p1-0).
+	 *
+	 * RX_TL=7 is CRITICAL for small transfers: with the previous
+	 * RX_TL=15 (copied from SDMMC2/eMMC's SUNXI_DMA_TL_SDMMC2),
+	 * an 8-byte CMD51 (SEND_SCR) read never reaches the RX watermark
+	 * (8 < 15), so SDHC never asserts a DMA request, IDMAC stalls in
+	 * WRITE_REQUEST_WAIT, the FIFO overflows -> Data CRC (rint=0x82c).
+	 * With RX_TL=7, 8 bytes (>7) triggers the DMA request normally.
+	 *
+	 * TX_TL=248 (0xF8) suits the 256-deep T113 FIFO (trigger TX when
+	 * FIFO<=248 bytes).  Burst field [31:28]=0x2 matches V3s.
+	 */
+	.ftrglevel_default = 0x200700F8,
+	.des_addr_shift = 2,		/* T113/D1 IDMAC uses word (>>2) addresses */
+	.has_access_done_direct = false,
+};
+
+#define SDHC_VARIANT_allwinner_sun20i_d1_mmc	(&sunxi_mmc_t113_variant)
+#endif /* CONFIG_SDHC_SUNXI_T113 */
 
 struct sdhc_sunxi_config {
 	DEVICE_MMIO_ROM;
@@ -48,6 +119,7 @@ struct sdhc_sunxi_config {
 	struct reset_dt_spec reset;
 	struct gpio_dt_spec cd_gpio;
 	const struct pinctrl_dev_config *pcfg;
+	const struct sunxi_mmc_variant *variant;
 	void (*irq_config_func)(const struct device *dev);
 };
 
@@ -213,13 +285,9 @@ static uint32_t sunxi_mmc_response_flags(uint32_t response_type)
 
 static int sdhc_sunxi_reset(const struct device *dev)
 {
+	const struct sdhc_sunxi_config *config = dev->config;
 	uint32_t gctrl_val;
-	uint32_t clkcr_before, clkcr_after;
 	int ret;
-
-	/* Diagnostic: log CLKCR before soft reset */
-	clkcr_before = sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, clkcr));
-	LOG_WRN("sdhc_sunxi_reset() called: CLKCR before=0x%08x", clkcr_before);
 
 	/* Set soft reset, FIFO reset, and DMA reset bits */
 	gctrl_val = sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, gctrl));
@@ -235,13 +303,33 @@ static int sdhc_sunxi_reset(const struct device *dev)
 		return -ETIMEDOUT;
 	}
 
-	/* Diagnostic: log CLKCR after soft reset */
-	clkcr_after = sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, clkcr));
-	LOG_WRN("sdhc_sunxi_reset() done: CLKCR after=0x%08x (clock %s)",
-		clkcr_after, (clkcr_after & BIT(16)) ? "enabled" : "DISABLED");
+#ifdef CONFIG_SDHC_SUNXI_T113
+	/*
+	 * T113/D1 SMHC MUST run in new/2X timing mode.  The SMHC_NTSR power-on
+	 * default is 0x81710000 (MODE_SELECT bit31=1 plus the CMD/DAT RX-phase
+	 * clear bits).  The previous code wrote 0 here, forcing OLD timing mode
+	 * — on this SMHC IP the old-mode clock path does NOT output an SD card
+	 * clock, so every command timed out (RINTSTS bit8 = Response Timeout,
+	 * RESP0 = 0).
+	 *
+	 * Match Linux sunxi-mmc-v5p3x sunxi_mmc_2xmod_onoff(host, 1): keep the
+	 * register's phase bits intact and only ensure the 2X/new-mode bit.
+	 * The CCU mod clock + CCLK_DIV are programmed in sunxi_mmc_set_clock().
+	 */
+	{
+		uint32_t ntsr_val = sunxi_mmc_read(dev,
+			offsetof(struct sunxi_mmc_regs, ntsr));
+		ntsr_val |= SUNXI_MMC_NTSR_MODE_SEL_NEW;	/* bit31 = new/2x */
+		sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, ntsr),
+				ntsr_val);
+
+		LOG_INF("T113 NTSR = 0x%08x (new/2x timing mode enabled)",
+			ntsr_val);
+	}
+#endif
 
 	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, ftrglevel),
-			0x20070008);
+			config->variant->ftrglevel_default);
 
 	/* Maximum timeout value (data and response) */
 	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, timeout),
@@ -264,7 +352,9 @@ static int sdhc_sunxi_reset(const struct device *dev)
 	 */
 	gctrl_val = sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, gctrl));
 	gctrl_val |= SUNXI_MMC_GCTRL_INT_ENB;
-	gctrl_val &= ~SUNXI_MMC_GCTRL_ACCESS_DONE_DIRECT;
+	if (config->variant->has_access_done_direct) {
+		gctrl_val &= ~SUNXI_MMC_GCTRL_ACCESS_DONE_DIRECT;
+	}
 
 #ifdef CONFIG_SDHC_SUNXI_DMA
 	/* DMA mode: leave FIFO_AC_MOD=0 (DMA bus), DMA_ENB per-transfer */
@@ -321,20 +411,30 @@ static int sunxi_mmc_update_clk(const struct device *dev)
 {
 	uint32_t cmd;
 	uint32_t rint_val;
+	uint32_t clkcr;
 	int ret;
 
-	cmd = SUNXI_MMC_CMD_START | SUNXI_MMC_CMD_UPCLK_ONLY;
+	/*
+	 * Mask DATA0 during clock update — required on T113/D1
+	 * (Linux sun20i_d1_cfg.mask_data0 = true).  Without this,
+	 * a held-low DATA0 line can block the CIU clock update.
+	 */
+	clkcr = sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, clkcr));
+	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, clkcr),
+			clkcr | SUNXI_MMC_CLKCR_CLK_MASK_DATA0);
+
+	/*
+	 * WAIT_PRE_OVER (bit 13) is required by T113 hardware and the
+	 * Allwinner manual example (0x80202000).  Without it the CIU
+	 * may silently ignore the clock change.
+	 */
+	cmd = SUNXI_MMC_CMD_START | SUNXI_MMC_CMD_UPCLK_ONLY |
+	      SUNXI_MMC_CMD_WAIT_PRE_OVER;
 
 	LOG_DBG("update_clk: cmd=0x%08x", cmd);
 
 	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, cmd), cmd);
 
-	/*
-	 * Wait for START bit to clear (hardware processes the clock update).
-	 * Without WAIT_PRE_OVER, the CIU processes UPCLK_ONLY almost
-	 * instantly (< 1ms) when functional.  Use 50ms timeout; if the
-	 * CIU doesn't respond, it needs a CCU reset to recover.
-	 */
 	ret = sunxi_mmc_wait_reg(dev,
 		offsetof(struct sunxi_mmc_regs, cmd),
 		SUNXI_MMC_CMD_START, 0, 50000);
@@ -378,8 +478,9 @@ static int sunxi_mmc_update_clk(const struct device *dev)
 		sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, clkcr),
 			saved_clkcr);
 
-		/* Retry UPCLK_ONLY */
-		cmd = SUNXI_MMC_CMD_START | SUNXI_MMC_CMD_UPCLK_ONLY;
+		/* Retry UPCLK_ONLY with WAIT_PRE_OVER */
+		cmd = SUNXI_MMC_CMD_START | SUNXI_MMC_CMD_UPCLK_ONLY |
+		      SUNXI_MMC_CMD_WAIT_PRE_OVER;
 		sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, cmd), cmd);
 
 		ret = sunxi_mmc_wait_reg(dev,
@@ -391,6 +492,11 @@ static int sunxi_mmc_update_clk(const struct device *dev)
 		}
 		LOG_DBG("update_clk: recovered successfully");
 	}
+
+	/* Clear MASK_DATA0 (set at the beginning of this function) */
+	clkcr = sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, clkcr));
+	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, clkcr),
+			clkcr & ~SUNXI_MMC_CLKCR_CLK_MASK_DATA0);
 
 	/*
 	 * Clear IRQ status bits set by the clock update command.
@@ -406,6 +512,9 @@ static int sunxi_mmc_update_clk(const struct device *dev)
 static int sunxi_mmc_set_clock(const struct device *dev, uint32_t target_hz)
 {
 	struct sdhc_sunxi_data *data = dev->data;
+#ifdef CONFIG_SDHC_SUNXI_T113
+	const struct sdhc_sunxi_config *cfg = dev->config;
+#endif
 	uint32_t clkcr;
 	uint32_t div;
 	int ret;
@@ -420,7 +529,18 @@ static int sunxi_mmc_set_clock(const struct device *dev, uint32_t target_hz)
 		return ret;
 	}
 
-	/* Calculate divider: card_clock = source_clock / (2 * (div + 1)) */
+#ifdef CONFIG_SDHC_SUNXI_T113
+	/*
+	 * New/2X timing mode: the internal CCLK_DIV divider is left at 0.
+	 * The CCU mod clock is programmed to 2x the desired card clock (done
+	 * below, after the card clock is disabled), so card_clock = mod/2.
+	 * This matches Linux sunxi-mmc-v5p3x (mod_clk = clock<<1, div=0).
+	 * Running CCLK_DIV!=0 in new mode, or forcing OLD timing mode, does
+	 * not produce a valid SD clock on this SMHC IP.
+	 */
+	div = 0;
+#else
+	/* V3s (old timing mode): card_clock = source_clock / (2 * (div + 1)) */
 	if (target_hz >= data->src_clk_hz) {
 		div = 0;
 	} else {
@@ -433,9 +553,10 @@ static int sunxi_mmc_set_clock(const struct device *dev, uint32_t target_hz)
 		}
 	}
 
-	LOG_DBG("set_clock: target=%u src=%u div=%u (actual=%u)",
+	LOG_INF("set_clock: target=%u Hz, CCU src=%u Hz, div=%u -> %u Hz",
 		target_hz, data->src_clk_hz, div,
 		data->src_clk_hz / (2 * (div + 1)));
+#endif
 
 	/* Step 1: Disable card clock and clear low-power mode.
 	 * Matches Linux sunxi_mmc_oclk_onoff(0) — ALWAYS performed,
@@ -454,6 +575,35 @@ static int sunxi_mmc_set_clock(const struct device *dev, uint32_t target_hz)
 		LOG_ERR("set_clock: step1 (disable) FAILED: %d", ret);
 		return ret;
 	}
+
+#ifdef CONFIG_SDHC_SUNXI_T113
+	/*
+	 * Card clock is now disabled — safe to reprogram the CCU mod clock.
+	 * Set it to 2x the desired card clock (SDR); the internal divider
+	 * stays at 0 (set above), so the final card clock = mod_clock / 2.
+	 */
+	{
+		uint32_t mod_target = target_hz * 2U;
+		uint32_t actual_mod = 0;
+
+		if (cfg->clk_dev && device_is_ready(cfg->clk_dev)) {
+			if (clock_control_set_rate(cfg->clk_dev, cfg->clk_id_mmc,
+				    (clock_control_subsys_rate_t)(uintptr_t)mod_target)) {
+				LOG_WRN("T113 CCU set_rate(%u) failed, keep last",
+					mod_target);
+			}
+			if (clock_control_get_rate(cfg->clk_dev, cfg->clk_id_mmc,
+				    &actual_mod) || actual_mod == 0) {
+				actual_mod = cfg->src_clock_freq;
+			}
+		} else {
+			actual_mod = cfg->src_clock_freq;
+		}
+		data->src_clk_hz = actual_mod;
+		LOG_INF("T113 CCU mod=%u Hz -> card %u Hz (CCLK_DIV=0, new mode)",
+			actual_mod, actual_mod / 2U);
+	}
+#endif
 
 	/* Step 2: Set new divider (clock still disabled, no update_clk).
 	 * Matches Linux: rval &= ~0xff; rval |= div - 1;
@@ -498,6 +648,7 @@ static int sunxi_mmc_set_clock(const struct device *dev, uint32_t target_hz)
 			clkcr_rb & SUNXI_MMC_CLKCR_CCLK_DIV_MASK);
 	}
 	#endif
+#ifndef CONFIG_SDHC_SUNXI_T113
 	/*
 	 * Diagnostic (Fix6): Poll STATUS register after clock enable to
 	 * determine whether the card successfully exits power-up busy.
@@ -509,6 +660,10 @@ static int sunxi_mmc_set_clock(const struct device *dev, uint32_t target_hz)
 	 *  - If DAT0 stays LOW forever: card or clock problem
 	 * Only done for initial identification clock (400kHz) to avoid
 	 * slowing down subsequent clock changes.
+	 *
+	 * NOTE: V3s-only diagnostic — uses DT_NODELABEL(pinctrl) and
+	 * hardcoded Port F SD pin offsets.  T113 has a different pinctrl
+	 * label (pio) and possibly different pin assignments.
 	 */
 	if (target_hz <= 400000) {
 		uint32_t poll_status;
@@ -633,6 +788,7 @@ static int sunxi_mmc_set_clock(const struct device *dev, uint32_t target_hz)
 			sunxi_mmc_update_clk(dev);
 		}
 	}
+#endif /* !CONFIG_SDHC_SUNXI_T113 */
 
 	LOG_DBG("Set clock: target=%u Hz, source=%u Hz, div=%u",
 		target_hz, data->src_clk_hz, div);
@@ -727,6 +883,9 @@ static int sdhc_sunxi_set_io(const struct device *dev, struct sdhc_io *ios)
 static int sunxi_mmc_fifo_read(const struct device *dev, uint8_t *buf,
 			       unsigned int total_bytes, int timeout_ms)
 {
+	const struct sdhc_sunxi_config *config = dev->config;
+	uint32_t fifo_cnt_mask = config->variant->fifo_level_mask;
+	uint32_t fifo_cnt_shift = config->variant->fifo_level_shift;
 	unsigned int bytes_read = 0;
 	int64_t end_time = k_uptime_get() + timeout_ms;
 
@@ -735,8 +894,7 @@ static int sunxi_mmc_fifo_read(const struct device *dev, uint8_t *buf,
 			offsetof(struct sunxi_mmc_regs, status));
 		uint32_t rx_count;
 
-		rx_count = (status & SUNXI_MMC_STATUS_RX_FIFO_CNT_MASK)
-			   >> SUNXI_MMC_STATUS_RX_FIFO_CNT_SHIFT;
+		rx_count = (status & fifo_cnt_mask) >> fifo_cnt_shift;
 
 		while (rx_count > 0 && bytes_read < total_bytes) {
 			uint32_t fifo_word = sunxi_mmc_read(dev,
@@ -748,8 +906,7 @@ static int sunxi_mmc_fifo_read(const struct device *dev, uint8_t *buf,
 
 			status = sunxi_mmc_read(dev,
 				offsetof(struct sunxi_mmc_regs, status));
-			rx_count = (status & SUNXI_MMC_STATUS_RX_FIFO_CNT_MASK)
-				   >> SUNXI_MMC_STATUS_RX_FIFO_CNT_SHIFT;
+			rx_count = (status & fifo_cnt_mask) >> fifo_cnt_shift;
 		}
 
 		/* Check for errors */
@@ -770,8 +927,7 @@ static int sunxi_mmc_fifo_read(const struct device *dev, uint8_t *buf,
 			/* Read remaining FIFO data */
 			status = sunxi_mmc_read(dev,
 				offsetof(struct sunxi_mmc_regs, status));
-			rx_count = (status & SUNXI_MMC_STATUS_RX_FIFO_CNT_MASK)
-				   >> SUNXI_MMC_STATUS_RX_FIFO_CNT_SHIFT;
+			rx_count = (status & fifo_cnt_mask) >> fifo_cnt_shift;
 			while (rx_count > 0 && bytes_read < total_bytes) {
 				uint32_t fifo_word = sunxi_mmc_read(dev,
 					offsetof(struct sunxi_mmc_regs, fifo));
@@ -782,9 +938,8 @@ static int sunxi_mmc_fifo_read(const struct device *dev, uint8_t *buf,
 				bytes_read += copy;
 				status = sunxi_mmc_read(dev,
 					offsetof(struct sunxi_mmc_regs, status));
-				rx_count = (status &
-					SUNXI_MMC_STATUS_RX_FIFO_CNT_MASK)
-					>> SUNXI_MMC_STATUS_RX_FIFO_CNT_SHIFT;
+				rx_count = (status & fifo_cnt_mask)
+					   >> fifo_cnt_shift;
 			}
 			break;
 		}
@@ -829,31 +984,156 @@ static int sunxi_mmc_fifo_write(const struct device *dev, const uint8_t *buf,
 }
 
 #ifdef CONFIG_SDHC_SUNXI_DMA
+
+/* Alignment for DMA descriptor pool + bounce buffer.  When the MMU is
+ * active the buffer is remapped Non-cacheable via k_mem_map_phys_bare,
+ * which operates on whole 4 kB pages, so we page-align both the address
+ * and size to avoid pulling neighbouring heap objects into the NC map.
+ */
+#ifdef CONFIG_MMU
+#define SUNXI_DMA_BUF_ALIGN	CONFIG_MMU_PAGE_SIZE
+#else
+#define SUNXI_DMA_BUF_ALIGN	32
+#endif
+
+/*
+ * Convert a CPU physical address to the form the IDMAC expects.
+ * T113/D1 store word (>>2) addresses in DLBA and descriptor buf_addr
+ * fields (host->des_addr_shift=2 in Linux v4p1x/v4p5x/v5p3x); V3s uses
+ * plain byte addresses (shift 0).  Without this, IDMAC internally
+ * left-shifts and accesses a bogus address -> descriptor never fetched
+ * -> OWN stays 1 -> FIFO overflows -> Data CRC (rint=0x82c).
+ */
+static inline uint32_t sunxi_mmc_idma_addr(const struct device *dev,
+					   const void *p)
+{
+	const struct sdhc_sunxi_config *cfg = dev->config;
+
+	return (uint32_t)(uintptr_t)p >> cfg->variant->des_addr_shift;
+}
+
+#ifdef CONFIG_MMU
+/*
+ * DIAGNOSTIC: walk ARMv7-A short-descriptor page tables (TTBR0 -> L1
+ * PTE -> L2 PTE) and decode TEX/C/B for a virtual address.
+ *
+ * Why: IDMAC buffers must be Normal Non-cacheable (TEX=100,C=0,B=0).
+ * Device memory (TEX=0,C=0,B=1) enforces strict ordering that defeats
+ * burst transfers -> FIFO under/overflow -> Data CRC (rint=0x82c).
+ * This log reveals the ACTUAL memory type the MMU assigned at boot,
+ * which is the key to distinguishing a cache-coherency bug (DDR is
+ * cacheable, needs k_mem_map_phys_bare) from a memory-type bug (DDR
+ * is already Normal-NC, but dma_nc uses MT_DEVICE).
+ *
+ * TEX/C/B decoding (ARM ARM Table B3-10):
+ *   TEX=100,C=0,B=0 -> Normal, Outer+Inner Non-cacheable  (good for DMA)
+ *   TEX=0,C=0,B=1   -> Device memory                       (bad for DMA bufs)
+ *   TEX=1xx,...     -> cacheable variants
+ */
+static void sunxi_mmc_log_mmu_attr(const void *addr, const char *label)
+{
+	uint32_t va = (uint32_t)(uintptr_t)addr;
+	uint32_t ttbr0, l1_entry, tex, c, b;
+	const char *type;
+
+	/* Read TTBR0 (L1 translation table base) */
+	__asm__ volatile("mrc p15, 0, %0, c2, c0, 0" : "=r"(ttbr0));
+	ttbr0 &= ~0x3FFFu;  /* strip IRGN/RGN/S control bits */
+
+	volatile uint32_t *l1 = (volatile uint32_t *)ttbr0;
+	l1_entry = l1[va >> 20];  /* L1 index = VA[31:20] */
+
+	if ((l1_entry & 0x3u) == 0x2u) {
+		/* 1 MB section: TEX=[14:12], C=[3], B=[2] */
+		tex = (l1_entry >> 12) & 0x7u;
+		c = (l1_entry >> 3) & 0x1u;
+		b = (l1_entry >> 2) & 0x1u;
+		type = (tex == 4 && !c && !b) ? "Normal-NC" :
+		       (!tex && !c && b) ? "DEVICE" : "cacheable?";
+		LOG_INF("MMU[%s %p] L1-SECTION=0x%08x TEX=%d C=%d B=%d (%s)",
+			label, addr, l1_entry, tex, c, b, type);
+	} else if ((l1_entry & 0x3u) == 0x1u) {
+		/* L2 page table ref: C=[3], B=[2], TEX=[8:6] */
+		volatile uint32_t *l2 = (volatile uint32_t *)(l1_entry & 0xFFFFFC00u);
+		uint32_t l2_entry = l2[(va >> 12) & 0xFFu];
+		tex = (l2_entry >> 6) & 0x7u;
+		c = (l2_entry >> 3) & 0x1u;
+		b = (l2_entry >> 2) & 0x1u;
+		type = (tex == 4 && !c && !b) ? "Normal-NC" :
+		       (!tex && !c && b) ? "DEVICE" : "cacheable?";
+		LOG_INF("MMU[%s %p] L2=0x%08x TEX=%d C=%d B=%d (%s)",
+			label, addr, l2_entry, tex, c, b, type);
+	} else {
+		LOG_INF("MMU[%s %p] L1=0x%08x UNMAPPED/FAULT",
+			label, addr, l1_entry);
+	}
+}
+#endif /* CONFIG_MMU */
+
 static int sunxi_mmc_dma_init(const struct device *dev)
 {
 	struct sdhc_sunxi_data *data = dev->data;
 
-	/* Allocate descriptor pool (cache-line aligned, one page = 256 descs) */
-	data->des_pool = k_aligned_alloc(32, SUNXI_IDMAC_DESC_POOL_SIZE);
-	if (!data->des_pool) {
-		LOG_ERR("Failed to allocate IDMAC descriptor pool");
-		return -ENOMEM;
-	}
-	memset(data->des_pool, 0, SUNXI_IDMAC_DESC_POOL_SIZE);
+	size_t desc_sz = SUNXI_IDMAC_DESC_POOL_SIZE;
+	size_t buf_sz = CONFIG_SDHC_SUNXI_DMA_BUF_SIZE;
+	size_t total = ROUND_UP(desc_sz + buf_sz, SUNXI_DMA_BUF_ALIGN);
 
-	/* Allocate DMA bounce buffer */
-	data->dma_buf_size = CONFIG_SDHC_SUNXI_DMA_BUF_SIZE;
-	data->dma_buf = k_aligned_alloc(32, data->dma_buf_size);
-	if (!data->dma_buf) {
-		LOG_ERR("Failed to allocate DMA bounce buffer (%zu bytes)",
-			data->dma_buf_size);
+	/* Step 1: allocate one contiguous, aligned block from the normal
+	 * heap.  Returned pointer is an identity-mapped DDR address
+	 * (VA == PA), still subject to the SoC MMU cache attributes.
+	 */
+	uint8_t *raw = k_aligned_alloc(SUNXI_DMA_BUF_ALIGN, total);
+
+	if (raw == NULL) {
+		LOG_ERR("DMA buffer alloc failed (%zu bytes)", total);
 		return -ENOMEM;
 	}
 
+	/* Remap the block Normal Non-cacheable so CPU and IDMAC observe
+	 * identical bytes (Linux dma_alloc_coherent equivalent).  Uses
+	 * K_MEM_ARM_NORMAL_NC, NOT K_MEM_CACHE_NONE (which maps Device
+	 * memory whose strict ordering breaks IDMAC bursts -> FIFO
+	 * overflow -> Data CRC 0x82c).
+	 *
+	 * Requires CONFIG_KERNEL_DIRECT_MAP so the PA can be used as the
+	 * VA (identity).  On SoCs without it (e.g. V3s whose DDR is already
+	 * non-cacheable), fall back to the heap address directly.
+	 */
+	uint8_t *nc;
+#ifdef CONFIG_KERNEL_DIRECT_MAP
+	k_mem_map_phys_bare(&nc, (uintptr_t)raw, total,
+			    K_MEM_ARM_NORMAL_NC | K_MEM_PERM_RW |
+			    K_MEM_DIRECT_MAP);
+#else
+	nc = raw;
+#endif
+
+	data->des_pool = (struct sunxi_idma_des *)nc;
+	memset(data->des_pool, 0, desc_sz);
+
+	data->dma_buf = nc + desc_sz;
+	data->dma_buf_size = buf_sz;
 	data->use_dma = true;
 
-	LOG_INF("DMA initialized: des_pool=%p dma_buf=%p (%zu bytes)",
-		data->des_pool, data->dma_buf, data->dma_buf_size);
+	LOG_DBG("DMA init: raw=%p nc=%p des=%p buf=%p (%zu+%zu bytes)",
+		(void *)raw, (void *)nc, (void *)data->des_pool,
+		(void *)data->dma_buf, desc_sz, buf_sz);
+
+#ifdef CONFIG_MMU
+	/* Verify actual MMU memory type of DMA buffers, a stack variable
+	 * (DDR RAM) and the init function (code) for comparison.
+	 * Expected if DDR is cacheable: stack/code = cacheable variants.
+	 * Expected if DDR is Normal-NC:  stack/code = TEX=4,C=0,B=0.
+	 * dma_nc (0x47F00000) should show DEVICE (TEX=0,C=0,B=1).
+	 */
+	sunxi_mmc_log_mmu_attr(data->des_pool, "des_pool");
+	sunxi_mmc_log_mmu_attr(data->dma_buf, "dma_buf");
+	{
+		uint32_t stack_var = 0xDEAD;
+		sunxi_mmc_log_mmu_attr(&stack_var, "stack(DDR)");
+	}
+	sunxi_mmc_log_mmu_attr((const void *)sunxi_mmc_dma_init, "code(DDR)");
+#endif
 	return 0;
 }
 
@@ -878,8 +1158,8 @@ static void sunxi_mmc_dma_prepare(const struct device *dev,
 				SUNXI_IDMAC_DES0_DIC;
 		des[i].buf_size = (chunk == SUNXI_IDMAC_MAX_BUF_SIZE)
 				  ? 0 : chunk;
-		des[i].buf_addr_ptr1 = (uint32_t)(uintptr_t)(sdata->dma_buf + offset);
-		des[i].buf_addr_ptr2 = (uint32_t)(uintptr_t)(
+		des[i].buf_addr_ptr1 = sunxi_mmc_idma_addr(dev, sdata->dma_buf + offset);
+		des[i].buf_addr_ptr2 = sunxi_mmc_idma_addr(dev,
 			(uint8_t *)sdata->des_pool +
 			(i + 1) * sizeof(struct sunxi_idma_des));
 
@@ -890,10 +1170,14 @@ static void sunxi_mmc_dma_prepare(const struct device *dev,
 	/* First descriptor: set FD (First Descriptor) flag */
 	des[0].config |= SUNXI_IDMAC_DES0_FD;
 
-	/* Last descriptor: set LD + ER, clear DIC, null next pointer */
-	des[i - 1].config |= SUNXI_IDMAC_DES0_LD | SUNXI_IDMAC_DES0_ER;
+	/* Last descriptor: set LD, clear DIC.  Match Linux exactly — it
+	 * sets only FD+LD and leaves next-ptr intact.  Setting ER
+	 * (End-of-Ring) alongside LD, and zeroing next-ptr, caused the
+	 * IDMAC to stall without draining the FIFO (RX_DATA_REQUEST stuck,
+	 * FIFO overflow -> Data CRC rint=0x82c).
+	 */
+	des[i - 1].config |= SUNXI_IDMAC_DES0_LD;
 	des[i - 1].config &= ~SUNXI_IDMAC_DES0_DIC;
-	des[i - 1].buf_addr_ptr2 = 0;
 
 	/* Flush descriptors from D-cache to RAM so IDMAC can read them */
 	sys_cache_data_flush_range(sdata->des_pool,
@@ -909,13 +1193,40 @@ static void sunxi_mmc_dma_start(const struct device *dev, bool is_read)
 	struct sdhc_sunxi_data *sdata = dev->data;
 	uint32_t gctrl;
 
-	/* Set descriptor list base address */
-	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, dlba),
-			(uint32_t)(uintptr_t)sdata->des_pool);
+	/*
+	 * Reset FIFO, DMA interface, and IDMAC controller BEFORE each transfer.
+	 * Matches Linux sunxi_mmc_start_dma() which calls reset_fifo() +
+	 * reset_dmaif() + reset_dmactl() before enabling DMA.  Without these,
+	 * residual state from the previous transfer corrupts the next DMA
+	 * data phase -> Data CRC Error (rint=0x82c).
+	 */
+	{
+		uint32_t g;
 
-	/* Reset IDMAC */
+		/* GCTRL.FIFO_RST (bit1) — wait for self-clear */
+		g = sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, gctrl));
+		g |= SUNXI_MMC_GCTRL_FIFO_RST;
+		sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, gctrl), g);
+		sunxi_mmc_wait_reg(dev, offsetof(struct sunxi_mmc_regs, gctrl),
+				   SUNXI_MMC_GCTRL_FIFO_RST, 0, 100000);
+
+		/* GCTRL.DMA_RST (bit2) — wait for self-clear */
+		g = sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, gctrl));
+		g |= SUNXI_MMC_GCTRL_DMA_RST;
+		sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, gctrl), g);
+		sunxi_mmc_wait_reg(dev, offsetof(struct sunxi_mmc_regs, gctrl),
+				   SUNXI_MMC_GCTRL_DMA_RST, 0, 100000);
+	}
+
+	/* Set descriptor list base address (word-shifted for T113 IDMAC) */
+	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, dlba),
+			sunxi_mmc_idma_addr(dev, sdata->des_pool));
+
+	/* Reset IDMAC controller — wait for self-clear */
 	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, dmac),
 			SUNXI_MMC_DMAC_SOFT_RST);
+	sunxi_mmc_wait_reg(dev, offsetof(struct sunxi_mmc_regs, dmac),
+			   SUNXI_MMC_DMAC_SOFT_RST, 0, 100000);
 
 	/* Enable DMA in GCTRL */
 	gctrl = sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, gctrl));
@@ -926,9 +1237,24 @@ static void sunxi_mmc_dma_start(const struct device *dev, bool is_read)
 	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, idie),
 			is_read ? SUNXI_MMC_IDST_RECV_INT : 0);
 
-	/* Start IDMAC: fix burst + IDMA on */
+	/* Start IDMAC: fix burst + IDMA on (matches Linux, no DES_LOAD). */
 	sunxi_mmc_write(dev, offsetof(struct sunxi_mmc_regs, dmac),
 			SUNXI_MMC_DMAC_FIX_BURST | SUNXI_MMC_DMAC_IDMA_ON);
+
+	/* DIAGNOSTIC: verify IDMAC actually started.  If DMA_ENB (bit5)
+	 * or IDMA_ON (bit7) read back 0, SDHC never issues DMA requests
+	 * -> FIFO undrained -> RX_DATA_REQUEST + CRC (rint=0x82c).
+	 */
+	{
+		uint32_t gg = sunxi_mmc_read(dev,
+			offsetof(struct sunxi_mmc_regs, gctrl));
+		uint32_t dd = sunxi_mmc_read(dev,
+			offsetof(struct sunxi_mmc_regs, dmac));
+		LOG_INF("DMA start chk: GCTRL=0x%08x(DMA_ENB=%d) "
+			"DMAC=0x%08x(IDMA_ON=%d)",
+			gg, !!(gg & SUNXI_MMC_GCTRL_DMA_ENB),
+			dd, !!(dd & SUNXI_MMC_DMAC_IDMA_ON));
+	}
 }
 
 static void sunxi_mmc_dma_stop(const struct device *dev)
@@ -998,15 +1324,26 @@ static int sdhc_sunxi_request(const struct device *dev, struct sdhc_command *cmd
 				offsetof(struct sunxi_mmc_regs, bytecnt), 0);
 		}
 
-		/* Check if controller is busy */
-		if (sunxi_mmc_read(dev, offsetof(struct sunxi_mmc_regs, status))
-		    & SUNXI_MMC_STATUS_DATA_FSM_BUSY) {
+		/*
+		 * Check if controller is ready for a new command.
+		 *
+		 * On T113/D1, DATA_FSM_BUSY (STATUS bit 10) can remain set
+		 * after clock enable even when the controller is idle (the
+		 * command FSM is in Idle state, FIFO is empty, no command
+		 * pending).  This is a spurious busy state that does NOT
+		 * prevent command transmission.  Linux does not check
+		 * DATA_FSM_BUSY before sending commands at all.
+		 *
+		 * Only wait for CARD_DATA_BUSY (bit 9) when a data transfer
+		 * is involved, matching Linux behavior.
+		 */
+		if (data_req) {
 			ret = sunxi_mmc_wait_reg(dev,
 				offsetof(struct sunxi_mmc_regs, status),
-				SUNXI_MMC_STATUS_DATA_FSM_BUSY, 0,
+				SUNXI_MMC_STATUS_CARD_DATA_BUSY, 0,
 				SUNXI_MMC_POLL_TIMEOUT_US);
 			if (ret) {
-				LOG_ERR("Controller busy timeout");
+				LOG_ERR("Card data busy timeout");
 				continue;
 			}
 		}
@@ -1265,6 +1602,60 @@ static int sdhc_sunxi_request(const struct device *dev, struct sdhc_command *cmd
 						"idst=0x%08x ret=%d",
 						sdata->last_rint,
 						sdata->last_idst, ret);
+					/* DIAGNOSTIC: dump IDMAC + descriptor
+					 * state.  RX_DATA_REQUEST (bit5) in
+					 * rint means the FIFO held unread
+					 * data — IDMAC never drained it.
+					 * If des0.OWN is still set, IDMAC
+					 * never read the descriptor; if
+					 * DLBA != des_pool addr, soft-rst
+					 * clobbered it.
+					 */
+					{
+						struct sunxi_idma_des *d =
+							sdata->des_pool;
+						uint32_t dlba = sunxi_mmc_read(
+							dev, offsetof(
+							struct sunxi_mmc_regs,
+							dlba));
+						uint32_t dmac = sunxi_mmc_read(
+							dev, offsetof(
+							struct sunxi_mmc_regs,
+							dmac));
+						uint32_t gg = sunxi_mmc_read(
+							dev, offsetof(
+							struct sunxi_mmc_regs,
+							gctrl));
+						uint32_t st = sunxi_mmc_read(
+							dev, offsetof(
+							struct sunxi_mmc_regs,
+							status));
+						LOG_ERR("IDMAC: DLBA=0x%08x(exp %p) "
+							"DMAC=0x%08x GCTRL=0x%08x "
+							"STATUS=0x%08x DMA_REQ=%d "
+							"FIFO_LVL=%d",
+							dlba,
+							(void *)sdata->des_pool,
+							dmac, gg, st,
+							!!(st & BIT(31)),
+							(int)((st >> 17) & 0x1ff));
+						LOG_ERR("des0: cfg=0x%08x(OWN=%d) "
+							"size=%u addr1=0x%08x "
+							"buf=%p",
+							d[0].config,
+							!!(d[0].config & BIT(31)),
+							d[0].buf_size,
+							d[0].buf_addr_ptr1,
+							(void *)sdata->dma_buf);
+#ifdef CONFIG_MMU
+						sunxi_mmc_log_mmu_attr(
+							sdata->des_pool,
+							"des_pool");
+						sunxi_mmc_log_mmu_attr(
+							sdata->dma_buf,
+							"dma_buf");
+#endif
+					}
 					continue;
 				}
 
@@ -1513,8 +1904,25 @@ static int sdhc_sunxi_init(const struct device *dev)
 	const struct sdhc_sunxi_config *cfg = dev->config;
 	int ret;
 
-	/* Map MMIO registers */
+	/*
+	 * Map MMIO registers.
+	 * On V3s (no static DDR section overlap with kernel VM space),
+	 * use the standard dynamic mapping via k_mem_map_phys_bare.
+	 *
+	 * On T113/D1, the 128 MB DDR identity mapping in soc.c covers the
+	 * entire kernel VM space as 1 MB sections.  k_mem_map_phys_bare
+	 * cannot reliably remap individual 4 kB pages within those sections
+	 * (the section-to-L2 conversion silently fails), so the returned VA
+	 * still points to DDR instead of the device register.  Work around
+	 * this by using the identity-mapped physical address directly —
+	 * soc.c already maps SMHC as MT_DEVICE for identity access.
+	 */
+#ifdef CONFIG_SDHC_SUNXI_T113
+	*(DEVICE_MMIO_RAM_PTR(dev)) =
+		(mm_reg_t)DEVICE_MMIO_ROM_PTR(dev)->phys_addr;
+#else
 	DEVICE_MMIO_MAP(dev, K_MEM_CACHE_NONE);
+#endif
 
 	/* Apply pinctrl configuration for MMC pins (CLK, CMD, D0-D3) */
 	if (cfg->pcfg) {
@@ -1524,33 +1932,6 @@ static int sdhc_sunxi_init(const struct device *dev)
 			return ret;
 		}
 		LOG_DBG("MMC pinctrl applied");
-
-		/*
-		 * Diagnostic: verify PF0-PF5 pin configuration by reading
-		 * PIO registers directly. Port F (port 5), stride 0x24.
-		 * FUNC_PF_SDC0=2, each pin uses 4 bits in CFG0 register.
-		 * Expected: CFG0[23:0] = 0x222222 (PF0-PF5 all func 2).
-		 * Pull-up = 1, each pin uses 2 bits in PUD register.
-		 * Expected: PUD[11:0] = 0x555 (all pull-up).
-		 */
-		#if CONFIG_SDHC_LOG_LEVEL >= LOG_LEVEL_DBG
-		{
-			uintptr_t pio_base = DT_REG_ADDR(DT_NODELABEL(pinctrl));
-			uint32_t port_off = 5 * 0x24; /* Port F */
-			uint32_t pf_cfg0 = sys_read32(pio_base + port_off);
-			uint32_t pf_pud = sys_read32(pio_base + port_off + 0x1C);
-			uint32_t pf_drv = sys_read32(pio_base + port_off + 0x14);
-
-			LOG_WRN("PIO PortF (after pinctrl): "
-				"CFG0=0x%08x PUD=0x%08x DRV=0x%08x",
-				pf_cfg0, pf_pud, pf_drv);
-			if ((pf_cfg0 & 0x00FFFFFF) != 0x00222222) {
-				LOG_WRN("PF0-PF5 mux NOT SDC0! "
-					"Expected 0x222222 got 0x%06x",
-					pf_cfg0 & 0x00FFFFFF);
-			}
-		}
-		#endif
 	}
 
 	/*
@@ -1654,39 +2035,8 @@ static int sdhc_sunxi_init(const struct device *dev)
 				"(expect bit8=1, bit31=1)",
 				mmc0_clk, bus_gating0);
 		}
-
-		/*
-		 * Diagnostic: check PIO PortF pull-up state AFTER hardware
-		 * reset and clock enable. If PUD=0, the pinctrl was either
-		 * not applied or was cleared by the reset sequence.
-		 * This helps diagnose why CMD8 RESP_ERROR occurs.
-		 */
-		{
-			uintptr_t pio_base =
-				DT_REG_ADDR(DT_NODELABEL(pinctrl));
-			uint32_t port_off = 5 * 0x24; /* Port F */
-			uint32_t pf_pud = sys_read32(pio_base + port_off + 0x1C);
-
-			if (pf_pud == 0) {
-				LOG_WRN("PIO PF PUD=0 after hw_reset+clk! "
-					"Forcing pull-up on PF0-PF5 (SDC0)");
-				/*
-				 * Explicitly configure pull-up on PF0-PF5.
-				 * Each pin uses 2 bits in PULL0 register:
-				 * 00=none, 01=pull-up, 10=pull-down.
-				 * PF0-PF5 = bits [11:0], pull-up = 0x555.
-				 */
-				sys_write32(0x00000555,
-					pio_base + port_off + 0x1C);
-				pf_pud = sys_read32(pio_base + port_off + 0x1C);
-				LOG_DBG("PIO PF PUD after fix: 0x%08x",
-					pf_pud);
-			} else {
-				LOG_DBG("PIO PF PUD OK after hw_reset+clk: "
-					"0x%08x", pf_pud);
-			}
-		}
 		#endif
+
 	} else {
 		LOG_WRN("No clock device, defaulting to 24MHz");
 	}
@@ -1814,6 +2164,7 @@ static int sdhc_sunxi_init(const struct device *dev)
 		.reset = RESET_DT_SPEC_INST_GET(inst),				\
 		.cd_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, cd_gpios, {0}),	\
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),			\
+		.variant = SDHC_VARIANT_GET(inst),				\
 		.irq_config_func = irq_config_func_##inst,			\
 	};									\
 										\
@@ -1829,3 +2180,15 @@ static int sdhc_sunxi_init(const struct device *dev)
 			      &sdhc_sunxi_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SDHC_SUNXI_INIT)
+
+/*
+ * T113-S3 / D1 SMHC instances.
+ * Redefine DT_DRV_COMPAT and re-run the instantiation macro so the same
+ * driver source covers the sun20i-d1-mmc compatible. SDHC_VARIANT_GET
+ * resolves to the T113 variant for this pass.
+ */
+#ifdef CONFIG_SDHC_SUNXI_T113
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT allwinner_sun20i_d1_mmc
+DT_INST_FOREACH_STATUS_OKAY(SDHC_SUNXI_INIT)
+#endif /* CONFIG_SDHC_SUNXI_T113 */

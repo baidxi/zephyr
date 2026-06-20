@@ -1,0 +1,35 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Generic OHCI USB Host Controller
+
+compatible: "generic-ohci"
+
+include: [usb-controller.yaml, reset-device.yaml]
+
+properties:
+  reg:
+    required: true
+    description: OHCI operational register base address and size
+
+  interrupts:
+    required: true
+    description: OHCI interrupt
+
+  clocks:
+    required: true
+    description: |
+      Clock specifiers for the OHCI controller.
+      Typical clocks: bus clock and functional (48MHz) clock.
+
+  resets:
+    required: true
+    description: Reset specifiers for the OHCI controller.
+
+  phys:
+    type: phandle-array
+    description: USB PHY phandle with index specifier
+
+  phy-names:
+    type: string-array
+    description: USB PHY name (e.g. "usb")

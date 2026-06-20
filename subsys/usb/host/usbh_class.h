@@ -15,6 +15,9 @@
 /** Match a class/subclass/protocol code triple */
 #define USBH_CLASS_MATCH_CODE_TRIPLE BIT(2)
 
+/** Match the interface/device class code only */
+#define USBH_CLASS_MATCH_CODE BIT(3)
+
 /** Interface number referring to the entire device instead of a particular interface */
 #define USBH_CLASS_IFNUM_DEVICE 0xff
 

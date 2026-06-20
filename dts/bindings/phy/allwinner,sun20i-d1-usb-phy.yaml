@@ -1,0 +1,60 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner D1/T113-S3 USB PHY Controller
+
+compatible: "allwinner,sun20i-d1-usb-phy"
+
+include: [phy-controller.yaml, reset-device.yaml]
+
+phy-cells:
+  - index
+
+properties:
+  "#phy-cells":
+    const: 1
+
+  reg:
+    required: true
+
+  reg-names:
+    required: true
+
+  clocks:
+    required: true
+
+  clock-names:
+    required: true
+
+  resets:
+    required: true
+
+  reset-names:
+    required: true
+
+  dr-mode:
+    type: string
+    enum: ["host", "peripheral", "otg"]
+    description: |
+      USB dual-role mode.
+      - host: Force host mode
+      - peripheral: Force device/peripheral mode
+      - otg: Dynamic role switch via ID pin
+
+  phy0-dual-route:
+    type: boolean
+    description: |
+      Indicates that PHY0 can be routed between MUSB (peripheral) and
+      EHCI/OHCI (host) controllers via the OTGCTL_ROUTE_MUSB bit.
+
+  usb0_id_det-gpios:
+    type: phandle-array
+    description: |
+      GPIO phandle for USB OTG ID pin detection.
+      If not specified, defaults to peripheral mode.
+
+  usb0_vbus_det-gpios:
+    type: phandle-array
+    description: |
+      GPIO phandle for USB VBUS detection.
+      If not specified, defaults to VBUS always present.

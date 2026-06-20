@@ -3,9 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 config I2C_SUN8I_V3S
-	bool "Allwinner sun8i V3s TWI driver"
+	bool "Allwinner sun8i V3s / sun20i D1 TWI driver"
 	default y
-	depends on DT_HAS_ALLWINNER_SUN8I_V3S_I2C_ENABLED
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_I2C_ENABLED || \
+		   DT_HAS_ALLWINNER_SUN20I_D1_I2C_ENABLED
 	help
 	  Enable the I2C driver for the TWI ports incorporated
-	  in Allwinner V3s/V3 SoCs.
+	  in Allwinner V3s/V3 and D1/T113s3 SoCs.

@@ -1,0 +1,9 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config PINCTRL_SUN20I_D1
+	bool "Allwinner D1/T113-S3 pinctrl"
+	depends on DT_HAS_ALLWINNER_SUN20I_D1_PINCTRL_ENABLED
+	default y
+	help
+	  Enable pinctrl driver for D1/T113-S3 PIO.

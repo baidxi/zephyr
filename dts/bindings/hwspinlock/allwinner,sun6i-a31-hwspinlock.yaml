@@ -1,0 +1,34 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner SUN6I/A31 hardware spinlock controller.
+  Provides 32 hardware mutexes for cross-processor synchronization
+  (e.g. ARM Cortex-A7 ↔ DSP) on Allwinner SoCs including
+  A31, A64, A80, A83T, H3, H5, H6, D1, D1s, T113-S3.
+
+compatible: "allwinner,sun6i-a31-hwspinlock"
+
+include:
+  - name: base.yaml
+  - name: hwspinlock-controller.yaml
+  - name: reset-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  clocks:
+    required: true
+    description: |
+      AHB bus clock gate for the spinlock module.  On T113-S3/D1
+      this is CLK_BUS_SPINLOCK (bus clock from the CCU).
+
+  resets:
+    required: true
+    description: |
+      AHB bus reset line for the spinlock module.  On T113-S3/D1
+      this is RST_BUS_SPINLOCK (bus reset from the CCU).
+
+hwlock-cells:
+  - id

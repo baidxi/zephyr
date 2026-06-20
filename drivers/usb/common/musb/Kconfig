@@ -12,13 +12,12 @@ config MUSB
 
 if MUSB
 
-endif # MUSB
-
-config MUSB_LOG_LEVEL
-	int "MUSB driver log level"
-	default 0
-	depends on MUSB
-
+# NOTE: Do NOT manually define MUSB_LOG_LEVEL as an int here.
+# The manual "default 0" would always win over the template's choice
+# defaults, freezing the level at 0 (LOG_LEVEL_NONE) and stripping all
+# MUSB log output at compile time. Let the template below own it.
 module = MUSB
 module-str = MUSB
 source "subsys/logging/Kconfig.template.log_config"
+
+endif # MUSB

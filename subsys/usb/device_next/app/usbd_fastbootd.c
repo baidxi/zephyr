@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 juno <baidxi404629@gmail.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,8 +9,11 @@
  * @brief USB composite device: CDC ACM + Fastboot, auto-init via SYS_INIT
  *
  * Enable with CONFIG_USBD_FASTBOOTD=y.
- * Registers CDC ACM and Fastboot classes to a shared context.
- * Application must provide fastboot_ops via fastboot_register_ops()
+ * Registers Fastboot classes to a shared context.
+ * USB descriptor and configuration data is provided by the application
+ * via USBD_FASTBOOT_CONFIG_DEFINE() macro, which places a
+ * usbd_fastboot_config structure in a dedicated linker section.
+ * Application must also provide fastboot_ops via fastboot_register_ops()
  * before usbd_init() is called (use SYS_INIT with lower priority value).
  */
 
@@ -18,42 +21,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/usb/usbd.h>
+#include <zephyr/usb/class/usbd_fastboot.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(usbd_fastbootd, CONFIG_USBD_LOG_LEVEL);
-
-/* ============================================================
- * Device Context & Descriptors
- * ============================================================ */
-
-USBD_DEVICE_DEFINE(usbd_fastbootd_ctx,
-		   DEVICE_DT_GET(DT_NODELABEL(zephyr_udc0)),
-		   CONFIG_USBD_FASTBOOTD_VID,
-		   CONFIG_USBD_FASTBOOTD_PID);
-
-USBD_DESC_LANG_DEFINE(usbd_fastbootd_lang);
-USBD_DESC_MANUFACTURER_DEFINE(usbd_fastbootd_mfr,
-	CONFIG_USBD_FASTBOOTD_MANUFACTURER_STRING);
-USBD_DESC_PRODUCT_DEFINE(usbd_fastbootd_product,
-	CONFIG_USBD_FASTBOOTD_PRODUCT_STRING);
-IF_ENABLED(CONFIG_HWINFO, (USBD_DESC_SERIAL_NUMBER_DEFINE(usbd_fastbootd_sn)));
-
-USBD_DESC_CONFIG_DEFINE(usbd_fastbootd_fs_cfg, "Composite FS");
-USBD_DESC_CONFIG_DEFINE(usbd_fastbootd_hs_cfg, "Composite HS");
-
-USBD_CONFIGURATION_DEFINE(usbd_fastbootd_fs_config,
-	IS_ENABLED(CONFIG_USBD_FASTBOOTD_SELF_POWERED) ?
-	USB_SCD_SELF_POWERED : 0,
-	CONFIG_USBD_FASTBOOTD_MAX_POWER, &usbd_fastbootd_fs_cfg);
-
-USBD_CONFIGURATION_DEFINE(usbd_fastbootd_hs_config,
-	IS_ENABLED(CONFIG_USBD_FASTBOOTD_SELF_POWERED) ?
-	USB_SCD_SELF_POWERED : 0,
-	CONFIG_USBD_FASTBOOTD_MAX_POWER, &usbd_fastbootd_hs_cfg);
-
-/* ============================================================
- * VBUS callback
- * ============================================================ */
 
 static void bootloader_msg_cb(struct usbd_context *const ctx,
 			      const struct usbd_msg *msg)
@@ -70,22 +41,26 @@ static void bootloader_msg_cb(struct usbd_context *const ctx,
 	}
 }
 
-/* ============================================================
- * Init
- * ============================================================ */
-
 static int usbd_fastbootd_init(void)
 {
-	struct usbd_context *ctx = &usbd_fastbootd_ctx;
+	const struct usbd_fastboot_config *cfg = usbd_fastboot_config_get();
+	struct usbd_context *ctx;
 	int err;
 
+	if (!cfg) {
+		LOG_ERR("No fastboot config defined");
+		return -EINVAL;
+	}
+
+	ctx = cfg->ctx;
+
 	/* String descriptors */
-	usbd_add_descriptor(ctx, &usbd_fastbootd_lang);
-	usbd_add_descriptor(ctx, &usbd_fastbootd_mfr);
-	usbd_add_descriptor(ctx, &usbd_fastbootd_product);
-	IF_ENABLED(CONFIG_HWINFO, (
-		usbd_add_descriptor(ctx, &usbd_fastbootd_sn);
-	))
+	usbd_add_descriptor(ctx, cfg->lang);
+	usbd_add_descriptor(ctx, cfg->mfr);
+	usbd_add_descriptor(ctx, cfg->product);
+	if (cfg->sn) {
+		usbd_add_descriptor(ctx, cfg->sn);
+	}
 
 	/* VBUS callback */
 	usbd_msg_register_cb(ctx, bootloader_msg_cb);
@@ -94,7 +69,7 @@ static int usbd_fastbootd_init(void)
 	if (USBD_SUPPORTS_HIGH_SPEED &&
 	    usbd_caps_speed(ctx) == USBD_SPEED_HS) {
 		err = usbd_add_configuration(ctx, USBD_SPEED_HS,
-					     &usbd_fastbootd_hs_config);
+					     cfg->hs_config);
 		if (err) {
 			LOG_ERR("Failed to add HS config: %d", err);
 			return err;
@@ -112,7 +87,7 @@ static int usbd_fastbootd_init(void)
 	}
 
 	err = usbd_add_configuration(ctx, USBD_SPEED_FS,
-				     &usbd_fastbootd_fs_config);
+				     cfg->fs_config);
 	if (err) {
 		LOG_ERR("Failed to add FS config: %d", err);
 		return err;

@@ -1,0 +1,15 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+config UHC_EHCI
+	bool "Generic EHCI USB host controller driver"
+	default y
+	depends on DT_HAS_GENERIC_EHCI_ENABLED
+	help
+	  Generic EHCI (Enhanced Host Controller Interface) USB host
+	  controller driver.  Supports any standard EHCI-compliant
+	  controller.
+
+	  Platform-specific initialization (clocks, resets, PHY) is
+	  handled through Zephyr DT infrastructure.  Verify clock
+	  and reset IDs in DT bindings for your SoC.

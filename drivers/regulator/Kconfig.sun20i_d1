@@ -1,0 +1,25 @@
+# Copyright (c) 2026 Juno (@bingpi)
+# SPDX-License-Identifier: Apache-2.0
+
+config REGULATOR_SUN20I_D1_SYS_LDO
+	bool "Allwinner D1/T113 internal system LDO regulator driver"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN20I_D1_SYSTEM_LDOS_ENABLED
+	select SYSCON
+	help
+	  Enable support for the Allwinner D1/T113 internal system LDO
+	  regulators (LDOA and LDOB) located in the SYS_CFG module at
+	  register offset 0x150. These LDOs are accessed via the syscon
+	  device of the parent system-control node.
+
+	  - LDOA: 1.593V–2.007V, 32 steps (13.33mV/step)
+	  - LDOB: 1.167V–2.007V, 64 steps (13.33mV/step)
+
+config REGULATOR_SUN20I_D1_SYS_LDO_INIT_PRIORITY
+	int "D1/T113 system LDO regulator init priority"
+	default 75
+	depends on REGULATOR_SUN20I_D1_SYS_LDO
+	help
+	  Init priority for the D1/T113 system LDO regulator driver.
+	  Must be greater than CONFIG_SYSCON_INIT_PRIORITY (default 50)
+	  since the driver depends on the syscon device being ready.

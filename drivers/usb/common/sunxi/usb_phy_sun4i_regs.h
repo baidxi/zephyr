@@ -62,7 +62,8 @@
 #define PHY_CTL_SIDDQ            BIT(3)
 #define PHY_CTL_H3_SIDDQ         BIT(1)
 
-/* Maximum number of PHYs per controller */
+#define PHYCTL_VBUSVLDEXT        BIT(5)
+
 #define MAX_PHYS                 4
 
 #endif /* ZEPHYR_DRIVERS_USB_COMMON_SUNXI_USB_PHY_SUN4I_REGS_H_ */

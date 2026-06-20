@@ -4,14 +4,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 config DMA_SUN8I_V3S
-	bool "Allwinner sun8i V3s DMA driver"
+	bool "Allwinner sun6i-family DMA driver (sun8i V3s / sun20i D1)"
 	default y
-	depends on DT_HAS_ALLWINNER_SUN8I_V3S_DMA_ENABLED
+	depends on DT_HAS_ALLWINNER_SUN8I_V3S_DMA_ENABLED || DT_HAS_ALLWINNER_SUN20I_D1_DMA_ENABLED
 	select CACHE_MANAGEMENT
 	select DCACHE
 	help
-	  DMA driver for Allwinner sun8i V3s SoC. Supports 8 physical
-	  channels with linked-list descriptor chaining.
+	  DMA driver for the Allwinner sun6i DMA engine family. This is a
+	  single driver shared across multiple SoCs that differ only in
+	  register layout and feature set, selected at runtime via a variant
+	  descriptor:
+
+	  - sun8i V3s: 8 physical channels, 23 DRQ ports, A31-style CFG
+	    register layout (5-bit DRQ), single IRQ register group.
+	  - sun20i D1 / T113: 16 physical channels, 48 DRQ ports, H6-style
+	    CFG register layout (6-bit DRQ), dual IRQ register groups, 34-bit
+	    addressing, and an additional MBUS clock.
+
+	  Both variants use linked-list descriptor chaining.
 
 if DMA_SUN8I_V3S
 

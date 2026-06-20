@@ -1,0 +1,52 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_SUN8I_T113S3
+
+config NUM_IRQS
+	default 192
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	default $(dt_node_int_prop_int,/timer,clock-frequency)
+
+# The SoC-level MMU region table (soc.c) maps the full 128 MB DDR
+# region with 4 kB pages.  arm_mmu.c never uses 1 MB sections for the
+# mmu_config regions, so that one entry alone needs 128 L2 tables,
+# plus a handful for the device MMIO regions (GIC/UART/CCU/PIO/timer).
+# The arch default of 64 is far too small: once exhausted the L2 pool
+# silently reuses one table and corrupts every later device mapping,
+# which is exactly why the console UART dies after z_arm_mmu_init().
+config ARM_MMU_NUM_L2_TABLES
+	default 140
+
+# The SoC exposes a CCU reset controller (the ccu_reset child node of
+# the CCU) consumed by peripherals such as the UART.  Enable the reset
+# subsystem so reset_line_toggle() works; without it the ns16550 driver
+# aborts its init on "UART toggle reset line failed" (-ENOSYS) and the
+# shell backend can never attach to the console UART.
+config RESET
+	default y
+
+# Enable PM_DEVICE so the ns16550 driver fully configures the UART
+# (baud-rate divisor, LCR, FCR, …) via its PM action callback during
+# init.  pm_device_driver_init() always invokes PM_DEVICE_ACTION_TURN_ON
+# (which calls uart_ns16550_configure()), but with PM_DEVICE enabled the
+# driver also gets the full runtime PM state machine.  This keeps the
+# console UART correctly configured regardless of the reset path used.
+config PM_DEVICE
+	default y
+
+if SERIAL
+
+config UART_NS16550
+	default y
+
+config UART_NS16550_DW8250_DW_APB
+	default y
+
+config UART_NS16550_ACCESS_WORD_ONLY
+	default y
+
+endif # SERIAL
+
+endif

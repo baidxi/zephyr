@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner D1 / T113-S3 pin controller.
+
+  Example:
+    #include <zephyr/dt-bindings/pinctrl/allwinner,sun20i-d1-pinctrl.h>
+
+    &pio {
+        default_state {
+            uart3_pins: uart3-pins {
+                pinmux = <SUNXI_PINMUX(PB6, SUN8I_FUNC_UART3)>,
+                         <SUNXI_PINMUX(PB7, SUN8I_FUNC_UART3)>;
+            };
+        };
+    };
+
+compatible: "allwinner,sun20i-d1-pinctrl"
+
+include: base.yaml
+
+child-binding:
+  description: Pinctrl state container
+
+  child-binding:
+    description: Pin configuration group
+
+    include:
+      - name: pincfg-node.yaml
+        property-allowlist:
+          - input-enable
+          - bias-pull-up
+          - bias-pull-down
+          - drive-open-drain
+
+    properties:
+      pinmux:
+        required: true
+        type: array
+        description: Array of SUNXI_PINMUX(pin, func) values
+
+      drive-strength:
+        type: int
+        enum: [0, 1, 2, 3]
+        default: 2
+
+      allwinner,pull:
+        type: string
+        enum: ["no_pull", "pull_up", "pull_down"]
+        default: "no_pull"

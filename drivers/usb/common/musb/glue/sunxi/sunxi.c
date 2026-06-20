@@ -376,41 +376,43 @@ static void sunxi_reg_dump(const struct musb_dev *musb)
 {
 	uintptr_t musb_base = musb->base;
 
-	LOG_INF("=== CCU clocks ===");
-	LOG_INF("  PLL_PERIPH0 (0x028):   0x%08x",
+	LOG_DBG("=== CCU clocks ===");
+	LOG_DBG("  PLL_PERIPH0 (0x028):   0x%08x",
 		sys_read32(DT_REG_ADDR(DT_NODELABEL(ccu)) + 0x28));
-	LOG_INF("  USB_CLK (0x0cc):       0x%08x",
+	LOG_DBG("  USB_CLK (0x0cc):       0x%08x",
 		sys_read32(DT_REG_ADDR(DT_NODELABEL(ccu)) + 0x0cc));
-	LOG_INF("  BUS_CLK_GATING0 (0x060): 0x%08x",
+	LOG_DBG("  BUS_CLK_GATING0 (0x060): 0x%08x",
 		sys_read32(DT_REG_ADDR(DT_NODELABEL(ccu)) + 0x60));
-	LOG_INF("  BUS_CLK_GATING1:       0x%08x",
+	LOG_DBG("  BUS_CLK_GATING1:       0x%08x",
 		sys_read32(DT_REG_ADDR(DT_NODELABEL(ccu)) + 0x64));
-	LOG_INF("  BUS_SOFT_RST0:         0x%08x",
+	LOG_DBG("  BUS_SOFT_RST0:         0x%08x",
 		sys_read32(DT_REG_ADDR(DT_NODELABEL(ccu)) + 0x2c0));
 
-	LOG_INF("=== PHY ===");
-	LOG_INF("  ISCR:                  0x%08x",
+	LOG_DBG("=== PHY ===");
+	LOG_DBG("  ISCR:                  0x%08x",
 		sys_read32(DT_REG_ADDR_BY_IDX(DT_NODELABEL(usbphy), 0) + 0x00));
-	LOG_INF("  PHYCTL_A33:            0x%08x",
+	LOG_DBG("  PHYCTL_A33:            0x%08x",
 		sys_read32(DT_REG_ADDR_BY_IDX(DT_NODELABEL(usbphy), 0) + 0x10));
-	LOG_INF("  PHY_OTGCTL:            0x%08x",
+	LOG_DBG("  PHY_OTGCTL:            0x%08x",
 		sys_read32(DT_REG_ADDR_BY_IDX(DT_NODELABEL(usbphy), 0) + 0x20));
-	LOG_INF("  PMU_HCI_PHY_CTL:       0x%08x",
+	LOG_DBG("  PMU_PASSBY (0x00):     0x%08x",
+		sys_read32(DT_REG_ADDR_BY_NAME(DT_NODELABEL(usbphy), pmu0) + 0x00));
+	LOG_DBG("  PMU_HCI_PHY_CTL(0x10): 0x%08x",
 		sys_read32(DT_REG_ADDR_BY_NAME(DT_NODELABEL(usbphy), pmu0) + 0x10));
 
-	LOG_INF("=== MUSB ===");
-	LOG_INF("  POWER:                 0x%02x", sys_read8(musb_base + 0x40));
-	LOG_INF("  DEVCTL:                0x%02x", sys_read8(musb_base + 0x41));
-	LOG_INF("  INDEX:                 0x%02x", sys_read8(musb_base + 0x42));
-	LOG_INF("  VEND0:                 0x%02x", sys_read8(musb_base + 0x43));
-	LOG_INF("  INTRUSB:               0x%02x", sys_read8(musb_base + 0x4c));
-	LOG_INF("  INTRUSBE:              0x%02x", sys_read8(musb_base + 0x50));
-	LOG_INF("  INTRTX:                0x%04x", sys_read16(musb_base + 0x44));
-	LOG_INF("  INTRTXE:               0x%04x", sys_read16(musb_base + 0x48));
-	LOG_INF("  INTRRX:                0x%04x", sys_read16(musb_base + 0x46));
-	LOG_INF("  INTRRXE:               0x%04x", sys_read16(musb_base + 0x4a));
+	LOG_DBG("=== MUSB ===");
+	LOG_DBG("  POWER:                 0x%02x", sys_read8(musb_base + 0x40));
+	LOG_DBG("  DEVCTL:                0x%02x", sys_read8(musb_base + 0x41));
+	LOG_DBG("  INDEX:                 0x%02x", sys_read8(musb_base + 0x42));
+	LOG_DBG("  VEND0:                 0x%02x", sys_read8(musb_base + 0x43));
+	LOG_DBG("  INTRUSB:               0x%02x", sys_read8(musb_base + 0x4c));
+	LOG_DBG("  INTRUSBE:              0x%02x", sys_read8(musb_base + 0x50));
+	LOG_DBG("  INTRTX:                0x%04x", sys_read16(musb_base + 0x44));
+	LOG_DBG("  INTRTXE:               0x%04x", sys_read16(musb_base + 0x48));
+	LOG_DBG("  INTRRX:                0x%04x", sys_read16(musb_base + 0x46));
+	LOG_DBG("  INTRRXE:               0x%04x", sys_read16(musb_base + 0x4a));
 	sys_write8(0, musb_base + 0x42); /* INDEX=0 */
-	LOG_INF("  CSR0:                  0x%04x", sys_read16(musb_base + 0x82));
+	LOG_DBG("  CSR0:                  0x%04x", sys_read16(musb_base + 0x82));
 }
 
 static void sunxi_phy_notify(const struct sunxi_usb_phy *phy,
@@ -422,11 +424,11 @@ static void sunxi_phy_notify(const struct sunxi_usb_phy *phy,
 
 	switch (event) {
 	case SUNXI_USB_PHY_EVENT_ID:
-		LOG_INF("PHY notify: ID changed -> %s mode",
+		LOG_DBG("PHY notify: ID changed -> %s mode",
 			state ? "peripheral" : "host");
 		break;
 	case SUNXI_USB_PHY_EVENT_VBUS:
-		LOG_INF("PHY notify: VBUS changed -> %s",
+		LOG_DBG("PHY notify: VBUS changed -> %s",
 			state ? "online" : "offline");
 		break;
 	}
@@ -450,21 +452,28 @@ static int sunxi_init(const struct device *dev)
 	 */
 	sunxi_mregs = musb->base;
 
+	LOG_DBG("sunxi_init: clk_subsys=0x%lx rst_id=0x%x",
+		(uintptr_t)cfg->clk_subsys, cfg->rst_id);
+
 	ret = clock_control_on(musb->clk_dev, cfg->clk_subsys);
+	LOG_DBG("clock_control_on(OTG bus) = %d", ret);
 	if (ret < 0) {
-		LOG_ERR("MUSB bus clock enable failed: %d", ret);
+		LOG_ERR("MUSB bus clock enable failed: %d "
+			"(CCU d1_gates[] likely lacks D1_CLK_BUS_OTG=103)", ret);
 		return ret;
 	}
 
 	ret = reset_line_deassert(musb->rst_dev, cfg->rst_id);
+	LOG_DBG("reset_line_deassert(OTG bus) = %d", ret);
 	if (ret < 0) {
-		LOG_ERR("MUSB bus reset deassert failed: %d", ret);
+		LOG_ERR("MUSB bus reset deassert failed: %d "
+			"(reset d1_rst_infos[] likely lacks D1_RST_BUS_OTG=46)", ret);
 		return ret;
 	}
 
 	/* Set PIO mode via VEND0 */
 	sys_write8(0, musb->base + SUNXI_MUSB_VEND0);
-	LOG_INF("sunxi init: VEND0=0x%02x (PIO mode)",
+	LOG_DBG("sunxi init: VEND0=0x%02x (PIO mode)",
 		sys_read8(musb->base + SUNXI_MUSB_VEND0));
 
 	ret = phy_dev->enable(phy_dev);
@@ -518,6 +527,25 @@ static const struct musb_glue_ops sunxi_ops = {
 	.disable = sunxi_disable,
 };
 
+/* SoC-specific FIFO configuration compiled conditionally */
+#if DT_HAS_COMPAT_STATUS_OKAY(allwinner_sun20i_d1_musb)
+/* D1/T113-S3: EP1-5 bidirectional (TX+RX), 2KB FIFO (ram_bits=11).
+ * Matches Linux sun8i-a33 fallback config (sunxi_musb_hdrc_config_5eps).
+ */
+static const struct musb_fifo_cfg sunxi_fifo_cfg[] = {
+	{.hw_ep_num = 1, .style = FIFO_TX, .maxpacket = 512},
+	{.hw_ep_num = 1, .style = FIFO_RX, .maxpacket = 512},
+	{.hw_ep_num = 2, .style = FIFO_TX, .maxpacket = 512},
+	{.hw_ep_num = 2, .style = FIFO_RX, .maxpacket = 512},
+	{.hw_ep_num = 3, .style = FIFO_TX, .maxpacket = 512},
+	{.hw_ep_num = 3, .style = FIFO_RX, .maxpacket = 512},
+	{.hw_ep_num = 4, .style = FIFO_TX, .maxpacket = 512},
+	{.hw_ep_num = 4, .style = FIFO_RX, .maxpacket = 512},
+	{.hw_ep_num = 5, .style = FIFO_TX, .maxpacket = 512},
+	{.hw_ep_num = 5, .style = FIFO_RX, .maxpacket = 512},
+};
+#else
+/* V3s: EP1-4 bidirectional (TX+RX), 2KB FIFO */
 static const struct musb_fifo_cfg sunxi_fifo_cfg[] = {
 	{.hw_ep_num = 1, .style = FIFO_TX, .maxpacket = 512},
 	{.hw_ep_num = 1, .style = FIFO_RX, .maxpacket = 512},
@@ -528,46 +556,53 @@ static const struct musb_fifo_cfg sunxi_fifo_cfg[] = {
 	{.hw_ep_num = 4, .style = FIFO_TX, .maxpacket = 512},
 	{.hw_ep_num = 4, .style = FIFO_RX, .maxpacket = 512},
 };
+#endif
 
-/* =========================================================================
- * Platform Config
- * ========================================================================= */
-
- /* Obtain the PHY pseudo-device for the V3s usbotg node */
+ /* Obtain the PHY pseudo-device for the usbotg node */
 #define MUSB_PHY_NODE DT_NODELABEL(usbphy)
 #define MUSB_NODE     DT_NODELABEL(usbotg)
+
+/*
+ * V3s:  5 endpoints (EP0 + 4 bidir pairs), 2KB FIFO (ram_bits=11)
+ * D1:   6 endpoints (EP0 + 5 bidir pairs), 2KB FIFO (ram_bits=11)
+ *       (D1 falls back to sun8i-a33 config in Linux, which uses
+ *       SUNXI_MUSB_RAM_BITS=11 for all sunxi variants.)
+ */
+#define SUNXI_MUSB_NUM_EPS						\
+	COND_CODE_1(DT_HAS_COMPAT_STATUS_OKAY(allwinner_sun20i_d1_musb), \
+		    (6), (5))
+
+#define SUNXI_MUSB_RAM_BITS						\
+	COND_CODE_1(DT_HAS_COMPAT_STATUS_OKAY(allwinner_sun20i_d1_musb), \
+		    (11), (11))
+
+#define SUNXI_MUSB_EPMASK						\
+	COND_CODE_1(DT_HAS_COMPAT_STATUS_OKAY(allwinner_sun20i_d1_musb), \
+		    (GENMASK(5, 0)), (GENMASK(4, 0)))
 
 static const struct musb_glue_config sunxi_config = {
 	.fifo_cfg = sunxi_fifo_cfg,
 	.fifo_cfg_size = ARRAY_SIZE(sunxi_fifo_cfg),
-	.num_eps = 5,   /* EP0 + 4 bidirectional endpoints */
-	.ram_bits = 11, /* 2KB FIFO RAM (2^11), matching Linux SUNXI_MUSB_RAM_BITS */
-	.quirks = MUSB_INDEXED_EP | MUSB_NO_CONFIGDATA,
+	.num_eps = SUNXI_MUSB_NUM_EPS,
+	.ram_bits = SUNXI_MUSB_RAM_BITS,
+	.quirks = MUSB_INDEXED_EP | MUSB_NO_CONFIGDATA
+#if IS_ENABLED(CONFIG_MUSB_SUNXI_FORCE_FULLSPEED)
+		  | MUSB_DISABLE_HS
+#endif
+		  ,
 	.configdata_val = 0xde,
-	.epmask = BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4), /* EP0-4 */
+	.epmask = SUNXI_MUSB_EPMASK,
 	.clk_subsys =
 		(clock_control_subsys_t)(uintptr_t)DT_PHA_BY_IDX(MUSB_NODE, clocks, 0, clk_id),
 	.rst_id = DT_PHA_BY_IDX(MUSB_NODE, resets, 0, id),
-	/*
-	 * V3s USB DMA DRQ slots (from V3s User Manual):
-	 *   USB_EP1=17, USB_EP2=18, USB_EP3=19, USB_EP4=20
-	 * EP0 is always PIO.  The MUSB wrapper on Allwinner SoCs
-	 * may not support DMA mode (PIO-only per Linux sunxi.c);
-	 * these values are provided for SoCs that do.
-	 */
+	/* PIO-only; DMA DRQ slots are SoC-specific and unused */
 	.dma_tx_drq =
 		{
-			[1] = 17,
-			[2] = 18,
-			[3] = 19,
-			[4] = 20,
+			[1] = 17, [2] = 18, [3] = 19, [4] = 20,
 		},
 	.dma_rx_drq =
 		{
-			[1] = 17,
-			[2] = 18,
-			[3] = 19,
-			[4] = 20,
+			[1] = 17, [2] = 18, [3] = 19, [4] = 20,
 		},
 };
 

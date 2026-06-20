@@ -3,9 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Allwinner sun8i V3s DMA driver.
+ * Allwinner sun6i-family DMA driver.
  *
- * 8 physical channels, linked-list descriptor architecture.
+ * Supports the sun8i V3s (A31-style CFG layout, 8 channels) and the
+ * sun20i D1 / T113 (H6-style CFG layout, 16 channels, MBUS clock).
+ * The per-SoC differences are described by a struct sun6i_dma_variant.
  * Reference: Linux drivers/dma/sun6i-dma.c
  */
 
@@ -23,8 +25,6 @@
 #include "dma_sun8i_v3s.h"
 
 LOG_MODULE_REGISTER(dma_sun8i_v3s, CONFIG_DMA_LOG_LEVEL);
-
-#define DT_DRV_COMPAT allwinner_sun8i_v3s_dma
 
 #define LLI_POOL_SIZE CONFIG_DMA_SUN8I_V3S_LLI_POOL_SIZE
 #define VCHAN_COUNT   CONFIG_DMA_SUN8I_V3S_VCHAN_COUNT
@@ -45,12 +45,71 @@ static struct lli_pool lli_pools[VCHAN_COUNT] __aligned(4);
 static void dma_cache_maintain(struct sun8i_v3s_dma_stream *stream,
 			       bool after_xfer);
 
+static void sun6i_set_drq_a31(uint32_t *cfg, uint8_t src_drq, uint8_t dst_drq)
+{
+	*cfg |= DMA_CFG_A31_SRC_DRQ(src_drq) | DMA_CFG_A31_DST_DRQ(dst_drq);
+}
+
+static void sun6i_set_mode_a31(uint32_t *cfg, uint8_t src_mode, uint8_t dst_mode)
+{
+	*cfg |= DMA_CFG_A31_SRC_MODE(src_mode) | DMA_CFG_A31_DST_MODE(dst_mode);
+}
+
+static void sun6i_set_burst_a31(uint32_t *cfg, uint8_t src_burst, uint8_t dst_burst)
+{
+	*cfg |= DMA_CFG_A31_SRC_BURST(src_burst) | DMA_CFG_A31_DST_BURST(dst_burst);
+}
+
+static void sun6i_set_drq_h6(uint32_t *cfg, uint8_t src_drq, uint8_t dst_drq)
+{
+	*cfg |= DMA_CFG_H6_SRC_DRQ(src_drq) | DMA_CFG_H6_DST_DRQ(dst_drq);
+}
+
+static void sun6i_set_mode_h6(uint32_t *cfg, uint8_t src_mode, uint8_t dst_mode)
+{
+	*cfg |= DMA_CFG_H6_SRC_MODE(src_mode) | DMA_CFG_H6_DST_MODE(dst_mode);
+}
+
+static void sun6i_set_burst_h6(uint32_t *cfg, uint8_t src_burst, uint8_t dst_burst)
+{
+	*cfg |= DMA_CFG_H6_SRC_BURST(src_burst) | DMA_CFG_H6_DST_BURST(dst_burst);
+}
+
+const struct sun6i_dma_variant sun8i_v3s_dma_variant = {
+	.nr_pchans = 8,
+	.nr_max_drq = 23,
+	.auto_gate_reg = DMA_AUTO_GATE_REG_A31,
+	.has_high_addr = false,
+	.has_mbus_clk = false,
+	.has_second_irq_reg = false,
+	.set_drq = sun6i_set_drq_a31,
+	.set_mode = sun6i_set_mode_a31,
+	.set_burst = sun6i_set_burst_a31,
+	.src_burst_lengths = BIT(1) | BIT(8),
+	.dst_burst_lengths = BIT(1) | BIT(8),
+};
+
+const struct sun6i_dma_variant sun20i_d1_dma_variant = {
+	.nr_pchans = 16,
+	.nr_max_drq = 48,
+	.auto_gate_reg = DMA_AUTO_GATE_REG_H6,
+	.has_high_addr = true,
+	.has_mbus_clk = true,
+	.has_second_irq_reg = true,
+	.set_drq = sun6i_set_drq_h6,
+	.set_mode = sun6i_set_mode_h6,
+	.set_burst = sun6i_set_burst_h6,
+	.src_burst_lengths = BIT(1) | BIT(4) | BIT(8) | BIT(16),
+	.dst_burst_lengths = BIT(1) | BIT(4) | BIT(8) | BIT(16),
+};
+
 static int convert_burst(uint32_t bytes)
 {
 	switch (bytes) {
 	case 1:  return 0;	/* 1 beat (single)  */
 	case 4:  return 1;	/* 4 beats          */
 	case 8:  return 2;	/* 8 beats          */
+	case 16: return 3;	/* 16 beats         */
 	default: return -EINVAL;
 	}
 }
@@ -61,6 +120,7 @@ static int convert_buswidth(uint32_t bytes)
 	case 1:  return 0;
 	case 2:  return 1;
 	case 4:  return 2;
+	case 8:  return 3;
 	default: return -EINVAL;
 	}
 }
@@ -84,6 +144,8 @@ static void lli_chain(struct sun8i_v3s_dma_lli *prev,
 
 static int build_cfg(const struct device *dev, struct dma_config *cfg, uint32_t *lli_cfg)
 {
+	struct sun8i_v3s_dma_data *data = dev->data;
+	const struct sun6i_dma_variant *variant = data->variant;
 	uint32_t src_width, dst_width, src_burst, dst_burst;
 	uint32_t src_mode = ADDR_MODE_LINEAR;
 	uint32_t dst_mode = ADDR_MODE_LINEAR;
@@ -137,6 +199,16 @@ static int build_cfg(const struct device *dev, struct dma_config *cfg, uint32_t 
 		return -EINVAL;
 	}
 
+	/* Validate burst lengths against the variant's supported set. */
+	if (!(variant->src_burst_lengths & BIT(src_burst))) {
+		LOG_ERR("unsupported src_burst %u", src_burst);
+		return -EINVAL;
+	}
+	if (!(variant->dst_burst_lengths & BIT(dst_burst))) {
+		LOG_ERR("unsupported dst_burst %u", dst_burst);
+		return -EINVAL;
+	}
+
 	ret = convert_buswidth(src_width);
 	if (ret < 0) {
 		LOG_ERR("invalid src_width %u", src_width);
@@ -153,24 +225,24 @@ static int build_cfg(const struct device *dev, struct dma_config *cfg, uint32_t 
 
 	ret = convert_burst(src_burst);
 	if (ret < 0) {
-		LOG_ERR("invalid src_burst %u (only 1,8 supported)", src_burst);
+		LOG_ERR("invalid src_burst %u", src_burst);
 		return -EINVAL;
 	}
 	src_burst = (uint32_t)ret;
 
 	ret = convert_burst(dst_burst);
 	if (ret < 0) {
-		LOG_ERR("invalid dst_burst %u (only 1,8 supported)", dst_burst);
+		LOG_ERR("invalid dst_burst %u", dst_burst);
 		return -EINVAL;
 	}
 	dst_burst = (uint32_t)ret;
 
-	*lli_cfg = DMA_CFG_SRC_WIDTH(src_width) |
-		   DMA_CFG_DST_WIDTH(dst_width) |
-		   DMA_CFG_SRC_BURST(src_burst) |
-		   DMA_CFG_DST_BURST(dst_burst) |
-		   DMA_CFG_SRC_MODE(src_mode) |
-		   DMA_CFG_DST_MODE(dst_mode);
+	/* Data-width field is identical across all supported variants. */
+	*lli_cfg = DMA_CFG_SRC_WIDTH(src_width) | DMA_CFG_DST_WIDTH(dst_width);
+
+	/* DRQ / address-mode / burst fields are variant-specific. */
+	variant->set_burst(lli_cfg, (uint8_t)src_burst, (uint8_t)dst_burst);
+	variant->set_mode(lli_cfg, (uint8_t)src_mode, (uint8_t)dst_mode);
 
 	return 0;
 }
@@ -179,6 +251,7 @@ static int sun8i_v3s_dma_config(const struct device *dev, uint32_t channel,
 				struct dma_config *cfg)
 {
 	struct sun8i_v3s_dma_data *data = dev->data;
+	const struct sun6i_dma_variant *variant = data->variant;
 	struct sun8i_v3s_dma_stream *stream;
 	struct lli_pool *pool;
 	struct dma_block_config *blk;
@@ -234,16 +307,13 @@ static int sun8i_v3s_dma_config(const struct device *dev, uint32_t channel,
 
 		switch (cfg->channel_direction) {
 		case MEMORY_TO_MEMORY:
-			lli->cfg |= DMA_CFG_SRC_DRQ(DRQ_SDRAM) |
-				    DMA_CFG_DST_DRQ(DRQ_SDRAM);
+			variant->set_drq(&lli->cfg, DRQ_SDRAM, DRQ_SDRAM);
 			break;
 		case MEMORY_TO_PERIPHERAL:
-			lli->cfg |= DMA_CFG_SRC_DRQ(DRQ_SDRAM) |
-				    DMA_CFG_DST_DRQ(cfg->dma_slot);
+			variant->set_drq(&lli->cfg, DRQ_SDRAM, (uint8_t)cfg->dma_slot);
 			break;
 		case PERIPHERAL_TO_MEMORY:
-			lli->cfg |= DMA_CFG_SRC_DRQ(cfg->dma_slot) |
-				    DMA_CFG_DST_DRQ(DRQ_SDRAM);
+			variant->set_drq(&lli->cfg, (uint8_t)cfg->dma_slot, DRQ_SDRAM);
 			break;
 		default:
 			return -EINVAL;
@@ -254,16 +324,16 @@ static int sun8i_v3s_dma_config(const struct device *dev, uint32_t channel,
 		pool->count++;
 		blk = blk->next_block;
 		}
-	
+
 		/* For cyclic mode: link last LLI back to first for continuous loop */
 		if (cfg->cyclic && pool->count > 1) {
 			struct sun8i_v3s_dma_lli *first = &pool->lli[0];
 			struct sun8i_v3s_dma_lli *last = &pool->lli[pool->count - 1];
-	
+
 			last->p_lli_next = (uintptr_t)first;
 			last->v_lli_next = first;
 		}
-	
+
 		stream->dma_callback = cfg->dma_callback;
 	stream->user_data = cfg->user_data;
 	stream->port = (uint8_t)cfg->dma_slot;
@@ -296,6 +366,7 @@ static int sun8i_v3s_dma_config(const struct device *dev, uint32_t channel,
 static int sun8i_v3s_dma_start(const struct device *dev, uint32_t channel)
 {
 	struct sun8i_v3s_dma_data *data = dev->data;
+	const struct sun6i_dma_variant *variant = data->variant;
 	struct sun8i_v3s_dma_stream *stream;
 	uint32_t reg_base = data->reg_base;
 	int pchan = -1;
@@ -311,7 +382,7 @@ static int sun8i_v3s_dma_start(const struct device *dev, uint32_t channel)
 
 	/* Find a free physical channel */
 	k_spinlock_key_t key = k_spin_lock(&data->lock);
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < variant->nr_pchans; i++) {
 		if (data->pchan_vchan[i] == VCHAN_COUNT) {
 			pchan = i;
 			data->pchan_vchan[i] = (uint8_t)channel;
@@ -332,20 +403,15 @@ static int sun8i_v3s_dma_start(const struct device *dev, uint32_t channel)
 
 	uintptr_t chan_base = reg_base + DMA_CHAN_OFFSET(pchan);
 
-	/* Set up interrupts: clear old enables, set the type for this channel */
-	uint32_t irq_reg = 0;
-	for (int i = 0; i < 8; i++) {
-		uint32_t shift = i * DMA_IRQ_WIDTH;
-		uint32_t type;
-
-		if (data->pchan_vchan[i] < VCHAN_COUNT) {
-			type = data->streams[data->pchan_vchan[i]].irq_type;
-		} else {
-			type = 0;
-		}
-		irq_reg |= type << shift;
-	}
-	sys_write32(irq_reg, reg_base + DMA_IRQ_EN_REG0);
+	/* Set up the IRQ enable for this physical channel (read-modify-write
+	 * the relevant IRQ group register).
+	 */
+	int group = pchan / DMA_IRQ_CHAN_PER_REG;
+	uint32_t shift = (pchan % DMA_IRQ_CHAN_PER_REG) * DMA_IRQ_WIDTH;
+	uint32_t irq_en = sys_read32(reg_base + DMA_IRQ_EN_OFFSET(group));
+	irq_en &= ~(DMA_IRQ_ALL << shift);
+	irq_en |= stream->irq_type << shift;
+	sys_write32(irq_en, reg_base + DMA_IRQ_EN_OFFSET(group));
 
 	/* Flush data buffers to memory before DMA accesses them */
 	dma_cache_maintain(stream, false);
@@ -364,6 +430,7 @@ static int sun8i_v3s_dma_start(const struct device *dev, uint32_t channel)
 static int sun8i_v3s_dma_stop(const struct device *dev, uint32_t channel)
 {
 	struct sun8i_v3s_dma_data *data = dev->data;
+	const struct sun6i_dma_variant *variant = data->variant;
 	struct sun8i_v3s_dma_stream *stream;
 	uint32_t reg_base = data->reg_base;
 
@@ -376,7 +443,7 @@ static int sun8i_v3s_dma_stop(const struct device *dev, uint32_t channel)
 	k_spinlock_key_t key = k_spin_lock(&data->lock);
 
 	/* Find which physical channel is running this stream */
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < variant->nr_pchans; i++) {
 		if (data->pchan_vchan[i] == channel) {
 			uintptr_t chan_base = reg_base + DMA_CHAN_OFFSET(i);
 
@@ -392,13 +459,15 @@ static int sun8i_v3s_dma_stop(const struct device *dev, uint32_t channel)
 			sys_write32(0, chan_base + DMA_CHAN_ENABLE);
 
 			/* Clear IRQ enable for this channel */
-			uint32_t irq_en = sys_read32(reg_base + DMA_IRQ_EN_REG0);
-			irq_en &= ~(0x7U << (i * DMA_IRQ_WIDTH));
-			sys_write32(irq_en, reg_base + DMA_IRQ_EN_REG0);
+			int group = i / DMA_IRQ_CHAN_PER_REG;
+			uint32_t shift = (i % DMA_IRQ_CHAN_PER_REG) * DMA_IRQ_WIDTH;
+			uint32_t irq_en = sys_read32(reg_base + DMA_IRQ_EN_OFFSET(group));
+			irq_en &= ~(DMA_IRQ_ALL << shift);
+			sys_write32(irq_en, reg_base + DMA_IRQ_EN_OFFSET(group));
 
 			/* Clear any pending IRQs */
-			sys_write32(0x7U << (i * DMA_IRQ_WIDTH),
-				    reg_base + DMA_IRQ_PEND_REG0);
+			sys_write32(DMA_IRQ_ALL << shift,
+				    reg_base + DMA_IRQ_PEND_OFFSET(group));
 
 			data->pchan_vchan[i] = VCHAN_COUNT;
 			data->active_desc[i] = NULL;
@@ -420,13 +489,14 @@ static int sun8i_v3s_dma_stop(const struct device *dev, uint32_t channel)
 static int sun8i_v3s_dma_suspend(const struct device *dev, uint32_t channel)
 {
 	struct sun8i_v3s_dma_data *data = dev->data;
+	const struct sun6i_dma_variant *variant = data->variant;
 	uint32_t reg_base = data->reg_base;
 
 	if (channel >= VCHAN_COUNT) {
 		return -EINVAL;
 	}
 
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < variant->nr_pchans; i++) {
 		if (data->pchan_vchan[i] == channel) {
 			sys_write32(DMA_CHAN_PAUSE_STOP,
 				    reg_base + DMA_CHAN_OFFSET(i) + DMA_CHAN_PAUSE);
@@ -441,6 +511,7 @@ static int sun8i_v3s_dma_suspend(const struct device *dev, uint32_t channel)
 static int sun8i_v3s_dma_resume(const struct device *dev, uint32_t channel)
 {
 	struct sun8i_v3s_dma_data *data = dev->data;
+	const struct sun6i_dma_variant *variant = data->variant;
 	uint32_t reg_base = data->reg_base;
 
 	if (channel >= VCHAN_COUNT) {
@@ -451,7 +522,7 @@ static int sun8i_v3s_dma_resume(const struct device *dev, uint32_t channel)
 		return -EINVAL;
 	}
 
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < variant->nr_pchans; i++) {
 		if (data->pchan_vchan[i] == channel) {
 			sys_write32(0, reg_base + DMA_CHAN_OFFSET(i) + DMA_CHAN_PAUSE);
 			data->streams[channel].state = SUN8I_V3S_DMA_ACTIVE;
@@ -466,6 +537,7 @@ static int sun8i_v3s_dma_get_status(const struct device *dev, uint32_t channel,
 				    struct dma_status *stat)
 {
 	struct sun8i_v3s_dma_data *data = dev->data;
+	const struct sun6i_dma_variant *variant = data->variant;
 	uint32_t reg_base = data->reg_base;
 
 	if (channel >= VCHAN_COUNT || stat == NULL) {
@@ -475,7 +547,7 @@ static int sun8i_v3s_dma_get_status(const struct device *dev, uint32_t channel,
 	stat->busy = false;
 	stat->pending_length = 0;
 
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < variant->nr_pchans; i++) {
 		if (data->pchan_vchan[i] == channel) {
 			uintptr_t cb = reg_base + DMA_CHAN_OFFSET(i);
 
@@ -537,69 +609,73 @@ static void dma_cache_maintain(struct sun8i_v3s_dma_stream *stream, bool after_x
 static void sun8i_v3s_dma_isr(const void *dev)
 {
 	struct sun8i_v3s_dma_data *data = ((const struct device *)dev)->data;
+	const struct sun6i_dma_variant *variant = data->variant;
 	struct sun8i_v3s_dma_stream *stream;
 	uint32_t reg_base = data->reg_base;
-	uint32_t pend;
+	int nr_groups = variant->has_second_irq_reg ? 2 : 1;
 	bool need_schedule = false;
 
-	pend = sys_read32(reg_base + DMA_IRQ_PEND_REG0);
-	if (!pend) {
-		return;
-	}
-
-	/* Write 1 to clear pending bits */
-	sys_write32(pend, reg_base + DMA_IRQ_PEND_REG0);
-
-	for (int i = 0; i < 8; i++) {
-		uint32_t mask = 0x7U << (i * DMA_IRQ_WIDTH);
-		uint32_t chan_pend = pend & mask;
-
-		if (!chan_pend) {
+	for (int g = 0; g < nr_groups; g++) {
+		uint32_t pend = sys_read32(reg_base + DMA_IRQ_PEND_OFFSET(g));
+		if (!pend) {
 			continue;
 		}
 
-		uint8_t vchan_idx = data->pchan_vchan[i];
-		if (vchan_idx >= VCHAN_COUNT) {
-			continue;
-		}
+		/* Write 1 to clear pending bits */
+		sys_write32(pend, reg_base + DMA_IRQ_PEND_OFFSET(g));
 
-		stream = &data->streams[vchan_idx];
+		for (int j = 0; j < DMA_IRQ_CHAN_PER_REG; j++) {
+			int i = g * DMA_IRQ_CHAN_PER_REG + j;
+			uint32_t shift = j * DMA_IRQ_WIDTH;
+			uint32_t chan_pend = (pend >> shift) & DMA_IRQ_ALL;
 
-		if (stream->cyclic) {
-			if (chan_pend & (DMA_IRQ_PKG << (i * DMA_IRQ_WIDTH))) {
-				/* Invalidate cache for RX (PERIPHERAL_TO_MEMORY)
-				 * so CPU sees DMA-written data.
-				 */
-				if (stream->direction == PERIPHERAL_TO_MEMORY) {
-					dma_cache_maintain(stream, true);
-				}
-				if (stream->dma_callback) {
-					stream->dma_callback(dev,
-						stream->user_data,
-						vchan_idx,
-						DMA_STATUS_BLOCK);
-				}
+			if (!chan_pend) {
+				continue;
 			}
-		} else {
-			if (chan_pend & (stream->irq_type << (i * DMA_IRQ_WIDTH))) {
-				dma_cache_maintain(stream, true);
-				if (stream->dma_callback) {
-					stream->dma_callback(dev,
-						stream->user_data,
-						vchan_idx,
-						DMA_STATUS_COMPLETE);
+
+			uint8_t vchan_idx = data->pchan_vchan[i];
+			if (vchan_idx >= VCHAN_COUNT) {
+				continue;
+			}
+
+			stream = &data->streams[vchan_idx];
+
+			if (stream->cyclic) {
+				if (chan_pend & DMA_IRQ_PKG) {
+					/* Invalidate cache for RX so CPU sees
+					 * DMA-written data.
+					 */
+					if (stream->direction == PERIPHERAL_TO_MEMORY) {
+						dma_cache_maintain(stream, true);
+					}
+					if (stream->dma_callback) {
+						stream->dma_callback(dev,
+							stream->user_data,
+							vchan_idx,
+							DMA_STATUS_BLOCK);
+					}
 				}
-				/* Disable channel */
-				sys_write32(0, reg_base + DMA_CHAN_OFFSET(i) + DMA_CHAN_ENABLE);
-				/* Clear IRQ enable */
-				uint32_t irq_en = sys_read32(reg_base + DMA_IRQ_EN_REG0);
-				irq_en &= ~(0x7U << (i * DMA_IRQ_WIDTH));
-				sys_write32(irq_en, reg_base + DMA_IRQ_EN_REG0);
-				/* Mark pchan free */
-				data->pchan_vchan[i] = VCHAN_COUNT;
-				data->active_desc[i] = NULL;
-				stream->state = SUN8I_V3S_DMA_IDLE;
-				need_schedule = true;
+			} else {
+				if (chan_pend & stream->irq_type) {
+					dma_cache_maintain(stream, true);
+					if (stream->dma_callback) {
+						stream->dma_callback(dev,
+							stream->user_data,
+							vchan_idx,
+							DMA_STATUS_COMPLETE);
+					}
+					/* Disable channel */
+					sys_write32(0, reg_base + DMA_CHAN_OFFSET(i) + DMA_CHAN_ENABLE);
+					/* Clear IRQ enable */
+					uint32_t irq_en = sys_read32(reg_base + DMA_IRQ_EN_OFFSET(g));
+					irq_en &= ~(DMA_IRQ_ALL << shift);
+					sys_write32(irq_en, reg_base + DMA_IRQ_EN_OFFSET(g));
+					/* Mark pchan free */
+					data->pchan_vchan[i] = VCHAN_COUNT;
+					data->active_desc[i] = NULL;
+					stream->state = SUN8I_V3S_DMA_IDLE;
+					need_schedule = true;
+				}
 			}
 		}
 	}
@@ -613,6 +689,7 @@ static void sun8i_v3s_dma_work(struct k_work *work)
 {
 	struct sun8i_v3s_dma_data *data =
 		CONTAINER_OF(work, struct sun8i_v3s_dma_data, schedule_work);
+	const struct sun6i_dma_variant *variant = data->variant;
 	uint32_t reg_base = data->reg_base;
 	k_spinlock_key_t key;
 
@@ -627,7 +704,7 @@ static void sun8i_v3s_dma_work(struct k_work *work)
 
 		/* Find free physical channel */
 		int pchan = -1;
-		for (int i = 0; i < 8; i++) {
+		for (int i = 0; i < variant->nr_pchans; i++) {
 			if (data->pchan_vchan[i] == VCHAN_COUNT) {
 				pchan = i;
 				break;
@@ -646,12 +723,13 @@ static void sun8i_v3s_dma_work(struct k_work *work)
 		uintptr_t chan_base = reg_base + DMA_CHAN_OFFSET(pchan);
 
 		/* Set IRQ enable for this channel */
-		uint32_t irq_en = sys_read32(reg_base + DMA_IRQ_EN_REG0);
-		uint32_t shift = pchan * DMA_IRQ_WIDTH;
+		int group = pchan / DMA_IRQ_CHAN_PER_REG;
+		uint32_t shift = (pchan % DMA_IRQ_CHAN_PER_REG) * DMA_IRQ_WIDTH;
 
-		irq_en &= ~(0x7U << shift);
+		uint32_t irq_en = sys_read32(reg_base + DMA_IRQ_EN_OFFSET(group));
+		irq_en &= ~(DMA_IRQ_ALL << shift);
 		irq_en |= stream->irq_type << shift;
-		sys_write32(irq_en, reg_base + DMA_IRQ_EN_REG0);
+		sys_write32(irq_en, reg_base + DMA_IRQ_EN_OFFSET(group));
 
 		sys_write32(stream->desc->p_lli, chan_base + DMA_CHAN_LLI_ADDR);
 		sys_write32(DMA_CHAN_ENABLE_START, chan_base + DMA_CHAN_ENABLE);
@@ -665,8 +743,11 @@ static void sun8i_v3s_dma_work(struct k_work *work)
 }
 
 struct sun8i_v3s_dma_config {
-	const struct device *clock_dev;
-	clock_control_subsys_t clock_subsys;
+	const struct device *bus_clk_dev;
+	clock_control_subsys_t bus_clk_subsys;
+	const struct device *mbus_clk_dev;
+	clock_control_subsys_t mbus_clk_subsys;
+	const struct sun6i_dma_variant *variant;
 	struct reset_dt_spec reset;
 	void (*irq_config_func)(const struct device *dev);
 };
@@ -675,12 +756,15 @@ static int sun8i_v3s_dma_init(const struct device *dev)
 {
 	struct sun8i_v3s_dma_data *data = dev->data;
 	const struct sun8i_v3s_dma_config *config = dev->config;
+	const struct sun6i_dma_variant *variant = config->variant;
 	int ret;
 
 	/* Mark all pchans free */
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < SUN6I_DMA_MAX_PCHANS; i++) {
 		data->pchan_vchan[i] = VCHAN_COUNT;
 	}
+
+	data->variant = variant;
 
 	sys_slist_init(&data->pending_streams);
 	k_work_init(&data->schedule_work, sun8i_v3s_dma_work);
@@ -704,21 +788,38 @@ static int sun8i_v3s_dma_init(const struct device *dev)
 		}
 	}
 
-	if (config->clock_dev != NULL) {
-		if (!device_is_ready(config->clock_dev)) {
+	/* Enable the bus clock (always required) */
+	if (config->bus_clk_dev != NULL) {
+		if (!device_is_ready(config->bus_clk_dev)) {
 			LOG_ERR("clock controller not ready");
 			return -ENODEV;
 		}
 
-		ret = clock_control_on(config->clock_dev, config->clock_subsys);
+		ret = clock_control_on(config->bus_clk_dev, config->bus_clk_subsys);
 		if (ret < 0) {
 			LOG_ERR("failed to enable DMA bus clock: %d", ret);
 			return ret;
 		}
 	}
 
-	/* Must set bit 2 (MCLK circuit auto-gate disable) during init per datasheet */
-	sys_write32(DMA_AUTO_GATE_ENABLE, data->reg_base + DMA_AUTO_GATE_REG);
+	/* Enable the MBUS clock (D1/T113 only) */
+	if (variant->has_mbus_clk && config->mbus_clk_dev != NULL) {
+		if (!device_is_ready(config->mbus_clk_dev)) {
+			LOG_ERR("mbus clock controller not ready");
+			return -ENODEV;
+		}
+
+		ret = clock_control_on(config->mbus_clk_dev, config->mbus_clk_subsys);
+		if (ret < 0) {
+			LOG_ERR("failed to enable DMA mbus clock: %d", ret);
+			return ret;
+		}
+	}
+
+	/* Must disable auto-gating during init per datasheet so the clock
+	 * stays on while software programs the controller.
+	 */
+	sys_write32(DMA_AUTO_GATE_ENABLE, data->reg_base + variant->auto_gate_reg);
 
 	config->irq_config_func(dev);
 
@@ -752,9 +853,14 @@ static const struct dma_driver_api sun8i_v3s_dma_api = {
 									\
 	static const struct sun8i_v3s_dma_config			\
 		dma_sun8i_v3s_config_##n = {				\
-		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),	\
-		.clock_subsys = (clock_control_subsys_t)		\
-			DT_INST_CLOCKS_CELL(n, clk_id),			\
+		.bus_clk_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR_BY_IDX(n, 0)),	\
+		.bus_clk_subsys = (clock_control_subsys_t)				\
+			DT_INST_CLOCKS_CELL_BY_IDX(n, 0, clk_id),			\
+		.mbus_clk_dev = COND_CODE_1(DT_INST_CLOCKS_HAS_IDX(n, 1),		\
+			(DEVICE_DT_GET(DT_INST_CLOCKS_CTLR_BY_IDX(n, 1))), (NULL)),	\
+		.mbus_clk_subsys = COND_CODE_1(DT_INST_CLOCKS_HAS_IDX(n, 1),		\
+			((clock_control_subsys_t)DT_INST_CLOCKS_CELL_BY_IDX(n, 1, clk_id)), (0)), \
+		.variant = DMA_VARIANT(n),							\
 		.reset = RESET_DT_SPEC_INST_GET_OR(n, {0}),		\
 		.irq_config_func = dma_sun8i_v3s_irq_config_##n,	\
 	};								\
@@ -772,4 +878,14 @@ static const struct dma_driver_api sun8i_v3s_dma_api = {
 		CONFIG_DMA_INIT_PRIORITY,				\
 		&sun8i_v3s_dma_api);
 
+/* sun8i V3s */
+#define DT_DRV_COMPAT allwinner_sun8i_v3s_dma
+#define DMA_VARIANT(n) (&sun8i_v3s_dma_variant)
+DT_INST_FOREACH_STATUS_OKAY(SUN8I_V3S_DMA_INIT)
+
+/* sun20i D1 / T113 */
+#undef DT_DRV_COMPAT
+#undef DMA_VARIANT
+#define DT_DRV_COMPAT allwinner_sun20i_d1_dma
+#define DMA_VARIANT(n) (&sun20i_d1_dma_variant)
 DT_INST_FOREACH_STATUS_OKAY(SUN8I_V3S_DMA_INIT)

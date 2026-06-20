@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner D1/T113 internal system LDO regulators.
+
+  These LDOs are located in the SYS_CFG (system control) module at the
+  SYS_LDO_CTRL register (offset 0x150). They are accessed through the
+  syscon device that is the parent of this node.
+
+  The two LDOs provide adjustable analog voltages for the SoC:
+  - LDOA: 1.593V–2.007V, 32 steps (13.33mV/step)
+  - LDOB: 1.167V–2.007V, 64 steps (13.33mV/step)
+
+  This node must be a child of a "syscon" node covering the SYS_CFG
+  address range (base 0x03000000, size 0x1000).
+
+  Example:
+    system-control@3000000 {
+      compatible = "syscon";
+      reg = <0x03000000 0x1000>;
+
+      system-ldos {
+        compatible = "allwinner,sun20i-d1-system-ldos";
+
+        reg_ldoa: ldoa {
+          regulator-min-microvolt = <1593333>;
+          regulator-max-microvolt = <2006656>;
+          regulator-always-on;
+        };
+        reg_ldob: ldob {
+          regulator-min-microvolt = <1166666>;
+          regulator-max-microvolt = <2006645>;
+          regulator-always-on;
+        };
+      };
+    };
+
+compatible: "allwinner,sun20i-d1-system-ldos"
+
+include: base.yaml
+
+child-binding:
+  include:
+    - name: regulator.yaml
+      property-allowlist:
+        - regulator-name
+        - regulator-always-on
+        - regulator-boot-on
+        - regulator-min-microvolt
+        - regulator-max-microvolt
+        - regulator-init-microvolt

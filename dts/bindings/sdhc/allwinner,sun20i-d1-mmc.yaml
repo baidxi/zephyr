@@ -1,0 +1,50 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner T113-S3 / D1 SMHC (SD/MMC Host Controller)
+
+compatible: "allwinner,sun20i-d1-mmc"
+
+include: [sdhc.yaml, reset-device.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+  interrupts:
+    required: true
+  clocks:
+    required: true
+  clock-names:
+    required: true
+  resets:
+    required: true
+  reset-names:
+    required: true
+  bus-width:
+    type: int
+    default: 4
+    description: Maximum bus width supported by this controller
+  frequency:
+    type: int
+    default: 24000000
+    description: |
+      Desired MMC module clock output frequency from CCU (Hz).
+      The CCU driver selects the appropriate clock source
+      (OSC24M / PLL_PERIPH0 / PLL_PERIPH1) and N/M dividers
+      to achieve the closest match. The MMC controller's CLKCR
+      divider further divides this to produce the card clock:
+        card_clock = frequency / (2 * (CLKCR_div + 1))
+      For SD High Speed (50 MHz), use frequency = 100000000.
+  cd-gpios:
+    type: phandle-array
+    description: Card detect GPIO
+  dmas:
+    type: phandle-array
+    description: |
+      External DMA channel (SoC DMA controller) for SD/MMC data transfer.
+      Optional: when absent the controller falls back to its internal
+      IDMAC engine or PIO mode. T113-S3/T113 shares one DRQ port for
+      both RX and TX per SDMMC instance.
+  dma-names:
+    type: string-array
+    description: DMA channel names, conventionally "tx-rx".

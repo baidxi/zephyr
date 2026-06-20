@@ -1,0 +1,6 @@
+config GPIO_SUN20I_D1
+	bool "Allwinner D1/T113-S3 GPIO"
+	depends on DT_HAS_ALLWINNER_SUN20I_D1_PINCTRL_ENABLED
+	default y
+	help
+	  Enable GPIO driver for D1/T113-S3.

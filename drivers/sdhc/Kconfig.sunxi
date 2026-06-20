@@ -4,7 +4,7 @@
 config SDHC_SUNXI
 	bool "Allwinner Sunxi SDHC driver"
 	default y
-	depends on DT_HAS_ALLWINNER_SUNXI_MMC_ENABLED
+	depends on DT_HAS_ALLWINNER_SUNXI_MMC_ENABLED || DT_HAS_ALLWINNER_SUN20I_D1_MMC_ENABLED
 	select SDHC_SUPPORTS_NATIVE_MODE
 	help
 	  SDHC driver for Allwinner SoCs. Supports MMC/SD/SDIO cards
@@ -28,3 +28,13 @@ config SDHC_SUNXI_DMA_BUF_SIZE
 	  Size of the DMA bounce buffer used for data transfers.
 	  Must be at least as large as the maximum single request.
 	  Default 64KB matches the maximum single-descriptor size.
+
+config SDHC_SUNXI_T113
+	bool "T113/D1 SMHC variant support (extended FIFO, delay registers)"
+	default y
+	depends on DT_HAS_ALLWINNER_SUN20I_D1_MMC_ENABLED
+	help
+	  Enable support for the Allwinner T113-S3 / D1 SMHC controller.
+	  This selects the T113-compatible register layout in sunxi_mmc_regs
+	  (256-deep FIFO, THLD/SFC/delay registers) while keeping the V3s
+	  layout bit-for-bit identical when CONFIG_SDHC_SUNXI_T113 is unset.

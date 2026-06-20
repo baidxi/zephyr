@@ -49,8 +49,25 @@ struct sunxi_mmc_regs {
 	uint32_t idie;		/* 0x8C IDMAC Interrupt Enable */
 	uint32_t chda;		/* 0x90 Current Host Descriptor Address */
 	uint32_t cbda;		/* 0x94 Current IDMAC Buffer Descriptor Address */
-	uint32_t res2[90];	/* 0x98-0x1FC Reserved */
-	uint32_t fifo;		/* 0x200 FIFO Data Port */
+#ifdef CONFIG_SDHC_SUNXI_T113
+	/* T113-S3 / D1 SMHC layout: res2[90] expanded into named registers */
+	uint32_t res2[26];		/* 0x98-0xFF Reserved */
+	uint32_t thld;			/* 0x100 Card Threshold Control */
+	uint32_t sfc;			/* 0x104 Sample FIFO Control */
+	uint32_t a23a;			/* 0x108 Auto CMD23 Argument */
+	uint32_t ddr_sbit_det;		/* 0x10C DDR Start Bit Detect */
+	uint32_t res3[10];		/* 0x110-0x137 Reserved */
+	uint32_t ext_cmd;		/* 0x138 Extend Command */
+	uint32_t ext_resp;		/* 0x13C Extend Response */
+	uint32_t drv_dl;		/* 0x140 Drive Delay */
+	uint32_t samp_dl;		/* 0x144 Sample Delay */
+	uint32_t ds_dl;			/* 0x148 DS Delay */
+	uint32_t hs400_dl;		/* 0x14C HS400 Delay */
+	uint32_t res4[44];		/* 0x150-0x1FF Reserved */
+#else
+	uint32_t res2[90];		/* 0x98-0x1FC Reserved — V3s layout */
+#endif
+	uint32_t fifo;			/* 0x200 FIFO Data Port */
 };
 
 /* GCTRL (0x00) bit definitions - matches Linux SDXC_REG_GCTRL */
@@ -69,6 +86,17 @@ struct sunxi_mmc_regs {
 #define SUNXI_MMC_GCTRL_HARDWARE_RESET \
 	(SUNXI_MMC_GCTRL_SOFT_RST | SUNXI_MMC_GCTRL_FIFO_RST | \
 	 SUNXI_MMC_GCTRL_DMA_RST)
+
+/*
+ * T113-S3 / D1 additional GCTRL (0x00) bit definitions.
+ * Guarded with CONFIG_SDHC_SUNXI_T113 so the V3s build is not polluted;
+ * these bits are absent on V3s.
+ */
+#ifdef CONFIG_SDHC_SUNXI_T113
+#define SUNXI_MMC_GCTRL_TIME_UNIT_DAT		BIT(11)  /* Time unit of DAT */
+#define SUNXI_MMC_GCTRL_TIME_UNIT_CMD		BIT(12)  /* Time unit of CMD */
+#define SUNXI_MMC_GCTRL_CD_DBC_ENB		BIT(15)  /* Card detect debounce */
+#endif
 
 /* CLKCR (0x04) bit definitions - matches Linux SDXC_REG_CLKCR */
 #define SUNXI_MMC_CLKCR_CCLK_DIV_MASK		GENMASK(7, 0)
@@ -168,6 +196,7 @@ struct sunxi_mmc_regs {
 #define SUNXI_MMC_STATUS_DATA_FSM_BUSY		BIT(10)
 #define SUNXI_MMC_STATUS_DMA_REQUEST		BIT(31)
 #define SUNXI_MMC_STATUS_FIFO_SIZE		16
+#define SUNXI_MMC_STATUS_FIFO_SIZE_T113		16
 
 /*
  * FIFO Level mask — verified against V3s User Manual (v3s_sdhc.pdf):
@@ -180,8 +209,17 @@ struct sunxi_mmc_regs {
  * A20/A13 used separate RX/TX counts at different bit positions.
  * V3s uses a single FIFO_LEVEL field at bits [21:17] for both directions.
  */
+/*
+ * FIFO_LEVEL field width differs across SoCs:
+ *   V3s    : bits [21:17]  (5 bits, max 31, FIFO = 32 entries)
+ *   T113/D1: bits [25:17]  (9 bits, max 511, FIFO = 256 entries)
+ * The default *_MASK / *_SHIFT macros keep the V3s value (backward compat);
+ * the driver variant struct selects the appropriate value at runtime.
+ */
 #define SUNXI_MMC_STATUS_FIFO_LEVEL_MASK	GENMASK(21, 17)
 #define SUNXI_MMC_STATUS_FIFO_LEVEL_SHIFT	17
+#define SUNXI_MMC_STATUS_FIFO_LEVEL_MASK_T113	GENMASK(25, 17)
+#define SUNXI_MMC_STATUS_FIFO_LEVEL_SHIFT_T113	17
 
 /* Legacy compat — used by sunxi_mmc_fifo_read/write */
 #define SUNXI_MMC_STATUS_RX_FIFO_CNT_MASK	SUNXI_MMC_STATUS_FIFO_LEVEL_MASK
@@ -215,6 +253,7 @@ struct sunxi_mmc_regs {
 #define SUNXI_MMC_DMAC_SOFT_RST		BIT(0)
 #define SUNXI_MMC_DMAC_FIX_BURST	BIT(1)
 #define SUNXI_MMC_DMAC_IDMA_ON		BIT(7)
+#define SUNXI_MMC_DMAC_DES_LOAD		BIT(31)  /* DES_LOAD_CTRL: refetch desc */
 
 /* DMAC burst length definitions */
 #define SUNXI_MMC_DMAC_BURST_LEN_INCR1	0
@@ -222,12 +261,48 @@ struct sunxi_mmc_regs {
 #define SUNXI_MMC_DMAC_BURST_LEN_INCR8	2
 #define SUNXI_MMC_DMAC_BURST_LEN_SHIFT	2
 
-/* FIFO size: 128 bytes, 32 entries of 32-bit */
+/*
+ * FIFO size:
+ *   V3s    : 128 bytes (32 entries of 32-bit)
+ *   T113/D1: 1024 bytes (256 entries of 32-bit)
+ * The driver variant struct selects the appropriate value at runtime.
+ */
 #define SUNXI_MMC_FIFO_SIZE		128
 #define SUNXI_MMC_FIFO_ENTRIES		32
+#define SUNXI_MMC_FIFO_SIZE_T113		1024
+#define SUNXI_MMC_FIFO_ENTRIES_T113		256
 
 /* Hardware reset register (0x78) */
 #define SUNXI_MMC_HWRST_EN		BIT(0)
+
+/*
+ * T113-S3 / D1 SMHC extended register bit definitions.
+ * Guarded with CONFIG_SDHC_SUNXI_T113 so the V3s build is not polluted;
+ * these registers/bits are absent on V3s.
+ */
+#ifdef CONFIG_SDHC_SUNXI_T113
+
+/* NTSR (0x5C) — New Timing Set Register, T113 adds mode select bit */
+#define SUNXI_MMC_NTSR_MODE_SEL_NEW		BIT(31)  /* 1 = new timing mode */
+
+/* THLD (0x100) — Card Threshold Control */
+#define SUNXI_MMC_THLD_CARD_WR_BLK_SIZE_EN	BIT(2)
+#define SUNXI_MMC_THLD_CARD_RD_BLK_SIZE_EN	BIT(0)
+
+/* SFC (0x104) — Sample FIFO Control */
+#define SUNXI_MMC_SFC_RX_WMARK_SHIFT		16
+#define SUNXI_MMC_SFC_RX_WMARK_MASK		GENMASK(28, 16)
+#define SUNXI_MMC_SFC_TX_WMARK_MASK		GENMASK(7, 0)
+
+/* DRV_DL (0x140) — Drive Delay */
+#define SUNXI_MMC_DRV_DL_CMD_PHASE_SEL		BIT(16)
+#define SUNXI_MMC_DRV_DL_DAT0_PHASE_SEL		BIT(0)
+
+/* SAMP_DL (0x144) — Sample Delay */
+#define SUNXI_MMC_SAMP_DL_CMD_PHASE_SEL		BIT(16)
+#define SUNXI_MMC_SAMP_DL_DAT0_PHASE_SEL	BIT(0)
+
+#endif /* CONFIG_SDHC_SUNXI_T113 */
 
 /*
  * IDMAC descriptor config flags — matches Linux SDXC_IDMAC_DES0_*

@@ -1,0 +1,35 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Generic EHCI USB Host Controller
+
+compatible: "generic-ehci"
+
+include: [usb-controller.yaml, reset-device.yaml]
+
+properties:
+  reg:
+    required: true
+    description: EHCI operational register base address and size
+
+  interrupts:
+    required: true
+    description: EHCI interrupt
+
+  clocks:
+    required: true
+    description: |
+      Clock specifiers for the EHCI controller.
+      Typical clocks: bus clock, optionally a functional clock.
+
+  resets:
+    required: true
+    description: Reset specifiers for the EHCI controller.
+
+  phys:
+    type: phandle-array
+    description: USB PHY phandle with index specifier
+
+  phy-names:
+    type: string-array
+    description: USB PHY name (e.g. "usb")

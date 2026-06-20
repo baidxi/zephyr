@@ -88,6 +88,10 @@ struct usb_device {
 	uint8_t actual_cfg;
 	/** Device address */
 	uint8_t addr;
+	/** Parent hub device address (0 for root device) */
+	uint8_t hub_addr;
+	/** Parent hub port number this device is attached to (0 for root) */
+	uint8_t hub_port;
 	/** Pointer to actual device configuration descriptor */
 	void *cfg_desc;
 	/** Pointers to device interfaces */
@@ -128,6 +132,10 @@ struct uhc_transfer {
 	uint8_t ep;
 	/** Endpoint type */
 	uint8_t type;
+	/** Data toggle sequence bit (0 = DATA0, 1 = DATA1), maintained
+	 *  by the host controller driver across re-enqueues to avoid
+	 *  silent packet drops on interrupt and bulk endpoints. */
+	uint8_t data_toggle;
 	/** Maximum packet size */
 	uint16_t mps;
 	/** Interval, used for periodic transfers only */

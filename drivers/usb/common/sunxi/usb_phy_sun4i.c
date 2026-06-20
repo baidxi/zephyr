@@ -29,10 +29,6 @@ LOG_MODULE_REGISTER(usb_phy_sun4i, CONFIG_MUSB_LOG_LEVEL);
 #include "usb_common.h"
 #include "usb_phy_sun4i_regs.h"
 
-/* =========================================================================
- * SoC-specific PHY configuration (compile-time constant)
- * ========================================================================= */
-
 struct sunxi_usb_phy_cfg {
 	uint8_t num_phys;
 	uint8_t disc_thresh;
@@ -45,7 +41,18 @@ struct sunxi_usb_phy_cfg {
 	uint16_t missing_phys;
 };
 
-static const struct sunxi_usb_phy_cfg sun8i_v3s_cfg = {
+#if DT_HAS_COMPAT_STATUS_OKAY(allwinner_sun20i_d1_usb_phy)
+static const struct sunxi_usb_phy_cfg sunxi_phy_cfg = {
+	.num_phys = 2,
+	.phyctl_offset = REG_PHYCTL_A33,
+	.dedicated_clocks = true,
+	.phy0_dual_route = true,
+	.hci_phy_ctl_clear = PHY_CTL_SIDDQ,
+	.siddq_in_base = true,
+};
+#else
+/* V3s: 1 PHY (OTG only) */
+static const struct sunxi_usb_phy_cfg sunxi_phy_cfg = {
 	.num_phys = 1,
 	.disc_thresh = 3,
 	.phyctl_offset = REG_PHYCTL_A33,
@@ -53,12 +60,9 @@ static const struct sunxi_usb_phy_cfg sun8i_v3s_cfg = {
 	.phy0_dual_route = true,
 	.hci_phy_ctl_clear = PHY_CTL_H3_SIDDQ,
 };
+#endif
 
-#define SUNXI_USB_PHY_CFG_FOR_COMPAT(phy_node)	(&sun8i_v3s_cfg)
-
-/* =========================================================================
- * Per-instance PHY configuration (GPIO info, clock/reset handles)
- * ========================================================================= */
+#define SUNXI_USB_PHY_CFG_FOR_COMPAT(phy_node)	(&sunxi_phy_cfg)
 
 struct sunxi_usb_phy_config {
 	uintptr_t phy_ctrl_base;
@@ -83,10 +87,6 @@ struct sunxi_usb_phy_config {
 #endif
 	bool has_vbus_det;
 };
-
-/* =========================================================================
- * Runtime state for PHY0 (ID/VBUS detection)
- * ========================================================================= */
 
 #define DEBOUNCE_MS	50
 #define POLL_MS		250
@@ -122,10 +122,6 @@ static const struct sunxi_usb_phy_config *g_phy0_cfg;
 static void sunxi_usb_phy_set_squelch_detect(const struct sunxi_usb_phy *phy,
 					     bool enabled);
 static void sunxi_usb_phy0_id_vbus_det_scan(struct k_work *work);
-
-/* =========================================================================
- * PHY register access helpers
- * ========================================================================= */
 
 static struct k_spinlock phyctl_lock;
 
@@ -175,10 +171,6 @@ static void sunxi_usb_phy_write(const struct sunxi_usb_phy *phy,
 	k_spin_unlock(&phyctl_lock, key);
 }
 
-/* =========================================================================
- * ISCR helpers
- * ========================================================================= */
-
 static void sunxi_usb_phy0_update_iscr(const struct sunxi_usb_phy *phy,
 				       uint32_t clr, uint32_t set)
 {
@@ -207,10 +199,6 @@ static void sunxi_usb_phy0_set_vbus_detect(const struct sunxi_usb_phy *phy,
 	sunxi_usb_phy0_update_iscr(phy, ISCR_FORCE_VBUS_MASK, val);
 }
 
-/* =========================================================================
- * Pass-by / PMU configuration
- * ========================================================================= */
-
 static void sunxi_usb_phy_passby(const struct sunxi_usb_phy *phy, bool enable)
 {
 	const struct sunxi_usb_phy_config *pcfg = phy->pcfg;
@@ -233,12 +221,6 @@ static void sunxi_usb_phy_passby(const struct sunxi_usb_phy *phy, bool enable)
 
 	sys_write32(reg_value, pcfg->pmu_base);
 }
-
-/* =========================================================================
- * ID / VBUS GPIO read helpers
- *
- * Equivalent to Linux sun4i_usb_phy0_get_id_det/vbus_det().
- * ========================================================================= */
 
 static int sunxi_usb_phy0_get_id_det(const struct sunxi_usb_phy *phy)
 {
@@ -296,12 +278,6 @@ static bool sunxi_usb_phy0_poll(const struct sunxi_usb_phy *phy)
 	return false;
 }
 
-/* =========================================================================
- * PHY route switching
- *
- * Equivalent to Linux sun4i_usb_phy0_reroute().
- * ========================================================================= */
-
 static void sunxi_usb_phy0_reroute(const struct sunxi_usb_phy *phy,
 				    int id_det)
 {
@@ -319,10 +295,10 @@ static void sunxi_usb_phy0_reroute(const struct sunxi_usb_phy *phy,
 	sys_write32(regval, pcfg->phy_ctrl_base + REG_PHY_OTGCTL);
 }
 
-/* =========================================================================
- * GPIO ISR — schedules debounced scan work
- * ========================================================================= */
-
+/* ISR is shared by both ID and VBUS GPIO callbacks, so it must be
+ * compiled whenever either GPIO is present (not only vbus_det). */
+#if DT_PROP_HAS_IDX(DT_NODELABEL(usbphy), usb0_id_det_gpios, 0) || \
+	DT_PROP_HAS_IDX(DT_NODELABEL(usbphy), usb0_vbus_det_gpios, 0)
 static void sunxi_usb_phy0_gpio_isr(const struct device *dev,
 				     struct gpio_callback *cb,
 				     uint32_t pins)
@@ -334,12 +310,7 @@ static void sunxi_usb_phy0_gpio_isr(const struct device *dev,
 	/* ID or VBUS changed — schedule debounced scan */
 	(void)k_work_schedule(&phy0_state.detect_work, K_MSEC(DEBOUNCE_MS));
 }
-
-/* =========================================================================
- * ID / VBUS detection scan work
- *
- * Ported from Linux sun4i_usb_phy0_id_vbus_det_scan().
- * ========================================================================= */
+#endif
 
 static void sunxi_usb_phy0_id_vbus_det_scan(struct k_work *work)
 {
@@ -406,7 +377,7 @@ static void sunxi_usb_phy0_id_vbus_det_scan(struct k_work *work)
 
 	/* Process ID change notifications */
 	if (id_notify) {
-		LOG_INF("USB ID changed: %s mode",
+		LOG_DBG("USB ID changed: %s mode",
 			id_det ? "peripheral" : "host");
 
 		/* When leaving host mode (id=1), force session end */
@@ -416,8 +387,7 @@ static void sunxi_usb_phy0_id_vbus_det_scan(struct k_work *work)
 			sunxi_usb_phy0_set_vbus_detect(phy, 1);
 		}
 
-		/* Enable passby only in host mode */
-		sunxi_usb_phy_passby(phy, !id_det);
+		/* Passby always enabled — do not disable on ID change */
 
 		/* Re-route PHY0 if the SoC supports dual route */
 		if (cfg->phy0_dual_route) {
@@ -433,7 +403,7 @@ static void sunxi_usb_phy0_id_vbus_det_scan(struct k_work *work)
 
 	/* Process VBUS change notifications */
 	if (vbus_notify) {
-		LOG_INF("USB VBUS changed: %s",
+		LOG_DBG("USB VBUS changed: %s",
 			vbus_det ? "online" : "offline");
 
 		if (phy0_state.notify_cb) {
@@ -448,10 +418,6 @@ static void sunxi_usb_phy0_id_vbus_det_scan(struct k_work *work)
 	}
 }
 
-/* =========================================================================
- * PHY enable / disable
- * ========================================================================= */
-
 static int sunxi_usb_phy_enable(const struct sunxi_usb_phy *phy)
 {
 	const struct sunxi_usb_phy_config *pcfg = phy->pcfg;
@@ -459,49 +425,84 @@ static int sunxi_usb_phy_enable(const struct sunxi_usb_phy *phy)
 	uint32_t val;
 	int ret;
 
+	LOG_DBG("PHY enable: clk_subsys=0x%lx rst_id=0x%x",
+		(uintptr_t)pcfg->clk_subsys, pcfg->rst_id);
+
 	/* PHY clock */
 	ret = clock_control_on(pcfg->ccu, pcfg->clk_subsys);
+	LOG_DBG("PHY clock_control_on = %d", ret);
 	if (ret < 0) {
-		return ret;
+		if (ret != -ENOTSUP) {
+			LOG_ERR("PHY clock enable failed: %d "
+				"(CCU may lack PHY gate, or clk_subsys mismatch)",
+				ret);
+			return ret;
+		}
+		LOG_DBG("PHY clock always-on (osc24M), skip CCU gate enable");
 	}
 
 	/* PHY reset */
 	ret = reset_line_deassert(pcfg->rst, pcfg->rst_id);
+	LOG_DBG("PHY reset_line_deassert = %d", ret);
 	if (ret < 0) {
+		LOG_ERR("PHY reset deassert failed: %d "
+			"(reset d1_rst_infos[] likely lacks D1_RST_USB_PHY0=40)", ret);
 		clock_control_off(pcfg->ccu, pcfg->clk_subsys);
 		return ret;
 	}
 
 	if (pcfg->pmu_base && cfg->hci_phy_ctl_clear) {
-		val = sys_read32(pcfg->pmu_base + REG_HCI_PHY_CTL);
+		val = sys_read32(pcfg->pmu_base + cfg->phyctl_offset);
 		val &= ~cfg->hci_phy_ctl_clear;
-		sys_write32(val, pcfg->pmu_base + REG_HCI_PHY_CTL);
+		sys_write32(val, pcfg->pmu_base + cfg->phyctl_offset);
 	}
 
-	if (phy->index == 0) {
-		sunxi_usb_phy_write(phy, PHY_RES45_CAL_EN, 0x01, 1);
-	}
+	if (cfg->siddq_in_base) {
+		if (phy->index == 0) {
+			val = sys_read32(pcfg->phy_ctrl_base +
+					 cfg->phyctl_offset);
+			val |= PHYCTL_VBUSVLDEXT;
+			val &= ~PHY_CTL_SIDDQ;
+			sys_write32(val, pcfg->phy_ctrl_base +
+				    cfg->phyctl_offset);
 
-	sunxi_usb_phy_write(phy, PHY_TX_AMPLITUDE_TUNE, 0x14, 5);
-	sunxi_usb_phy_write(phy, PHY_DISCON_TH_SEL, cfg->disc_thresh, 2);
-	/*
-	 * Enable squelch detect explicitly to match the state Linux
-	 * leaves the PHY in after post_root_reset_end().
-	 */
-	sunxi_usb_phy_set_squelch_detect(phy, true);
+			LOG_DBG("PHYCTL=0x%08x (VBUSVLDEXT=%d SIDDQ=%d)",
+				sys_read32(pcfg->phy_ctrl_base +
+					   cfg->phyctl_offset),
+				!!(val & PHYCTL_VBUSVLDEXT),
+				!!(val & PHY_CTL_SIDDQ));
+		}
+	} else {
+		if (phy->index == 0) {
+			sunxi_usb_phy_write(phy, PHY_RES45_CAL_EN, 0x01, 1);
+		}
+
+		sunxi_usb_phy_write(phy, PHY_TX_AMPLITUDE_TUNE, 0x14, 5);
+		sunxi_usb_phy_write(phy, PHY_DISCON_TH_SEL, cfg->disc_thresh, 2);
+	}
+	if (!cfg->siddq_in_base) {
+		sunxi_usb_phy_set_squelch_detect(phy, true);
+	}
 	sunxi_usb_phy_passby(phy, true);
 
+	{
+		uint32_t pmu_passby = sys_read32(pcfg->pmu_base);
+		uint32_t pmu_hci = sys_read32(pcfg->pmu_base + cfg->phyctl_offset);
+
+		LOG_DBG("PMU[0x00]=0x%08x passby (ULPI_BYPASS=%d AHB_ICHR8=%d "
+			"INCR4=%d ALIGN=%d)",
+			pmu_passby,
+			!!(pmu_passby & SUNXI_ULPI_BYPASS_EN),
+			!!(pmu_passby & SUNXI_AHB_ICHR8_EN),
+			!!(pmu_passby & SUNXI_AHB_INCR4_BURST_EN),
+			!!(pmu_passby & SUNXI_AHB_INCRX_ALIGN_EN));
+		LOG_DBG("PMU[0x10]=0x%08x hci_phy_ctl (SIDDQ=%d)",
+			pmu_hci, !!(pmu_hci & PHY_CTL_SIDDQ));
+	}
+
 	if (phy->index == 0) {
-		/* Enable pull-ups on DP/DM and ID pins */
 		sunxi_usb_phy0_update_iscr(phy, 0,
 			ISCR_DPDM_PULLUP_EN | ISCR_ID_PULLUP_EN);
-
-		/*
-		 * Configure ID/VBUS GPIO pins as inputs.
-		 * The sun8i-v3s GPIO driver does not handle pull-up
-		 * flags internally, but the PHY-level pull-up
-		 * (ISCR_ID_PULLUP_EN) handles the ID pin.
-		 */
 #if DT_PROP_HAS_IDX(DT_NODELABEL(usbphy), usb0_id_det_gpios, 0)
 		if (pcfg->has_id_det) {
 			ret = gpio_pin_configure(pcfg->id_det_gpio_dev,
@@ -523,27 +524,17 @@ static int sunxi_usb_phy_enable(const struct sunxi_usb_phy *phy)
 		}
 #endif
 
-		/*
-		 * Initial synchronous scan: read ID/VBUS GPIOs and set
-		 * ISCR before MUSB starts, so the controller begins in
-		 * the correct role.  This matches Linux's approach where
-		 * the PHY probe synchronously reads the initial state.
-		 */
 		phy0_state.id_det = sunxi_usb_phy0_get_id_det(phy);
 		phy0_state.vbus_det = sunxi_usb_phy0_get_vbus_det(phy);
 		sunxi_usb_phy0_set_id_detect(phy, phy0_state.id_det);
 		sunxi_usb_phy0_set_vbus_detect(phy, phy0_state.vbus_det);
 
-		LOG_INF("Initial: ID=%d (%s), VBUS=%d (%s)",
+		LOG_DBG("Initial: ID=%d (%s), VBUS=%d (%s)",
 			phy0_state.id_det,
 			phy0_state.id_det ? "peripheral" : "host",
 			phy0_state.vbus_det,
 			phy0_state.vbus_det ? "online" : "offline");
 
-		/* Adjust passby based on detected mode (host only) */
-		sunxi_usb_phy_passby(phy, !phy0_state.id_det);
-
-		/* Re-route PHY0 if the SoC supports dual route */
 		if (cfg->phy0_dual_route) {
 			sunxi_usb_phy0_reroute(phy, phy0_state.id_det);
 		}
@@ -553,12 +544,6 @@ static int sunxi_usb_phy_enable(const struct sunxi_usb_phy *phy)
 		/* Store config for work function access */
 		g_phy0_cfg = pcfg;
 
-		/*
-		 * Try to configure GPIO interrupts for ID and VBUS.
-		 * If the GPIO controller doesn't support interrupts
-		 * (returns -EOPNOTSUPP), we fall back to polling.
-		 * This mirrors Linux's gpiod_to_irq() > 0 check.
-		 */
 #if DT_PROP_HAS_IDX(DT_NODELABEL(usbphy), usb0_id_det_gpios, 0)
 		if (pcfg->has_id_det) {
 			ret = gpio_pin_interrupt_configure(
@@ -571,10 +556,10 @@ static int sunxi_usb_phy_enable(const struct sunxi_usb_phy *phy)
 				(void)gpio_add_callback(pcfg->id_det_gpio_dev,
 							&id_det_gpio_cb);
 				phy0_state.id_irq_available = true;
-				LOG_INF("ID det: interrupt mode (pin %d)",
+				LOG_DBG("ID det: interrupt mode (pin %d)",
 					pcfg->id_det_pin);
 			} else {
-				LOG_INF("ID det: polling mode "
+				LOG_DBG("ID det: polling mode "
 					"(irq config failed: %d)", ret);
 			}
 		}
@@ -592,20 +577,15 @@ static int sunxi_usb_phy_enable(const struct sunxi_usb_phy *phy)
 				(void)gpio_add_callback(pcfg->vbus_det_gpio_dev,
 							&vbus_det_gpio_cb);
 				phy0_state.vbus_irq_available = true;
-				LOG_INF("VBUS det: interrupt mode (pin %d)",
+				LOG_DBG("VBUS det: interrupt mode (pin %d)",
 					pcfg->vbus_det_pin);
 			} else {
-				LOG_INF("VBUS det: polling mode "
+				LOG_DBG("VBUS det: polling mode "
 					"(irq config failed: %d)", ret);
 			}
 		}
 #endif
 
-		/*
-		 * Schedule ongoing monitoring.  If in polling mode,
-		 * the work runs every POLL_MS.  If interrupts are
-		 * available, the GPIO ISR triggers the work instead.
-		 */
 		if (sunxi_usb_phy0_poll(phy)) {
 			(void)k_work_schedule(&phy0_state.detect_work,
 					      K_MSEC(POLL_MS));
@@ -622,6 +602,14 @@ static int sunxi_usb_phy_disable(const struct sunxi_usb_phy *phy)
 	if (phy->index == 0) {
 		sunxi_usb_phy0_update_iscr(phy,
 			ISCR_DPDM_PULLUP_EN | ISCR_ID_PULLUP_EN, 0);
+
+		if (pcfg->cfg->siddq_in_base) {
+			uintptr_t phyctl = pcfg->phy_ctrl_base +
+					   pcfg->cfg->phyctl_offset;
+
+			sys_write32(sys_read32(phyctl) | PHY_CTL_SIDDQ, phyctl);
+		}
+
 		phy0_state.phy0_init = false;
 
 		/* Cancel pending work */
@@ -650,10 +638,6 @@ static int sunxi_usb_phy_disable(const struct sunxi_usb_phy *phy)
 
 	return 0;
 }
-
-/* =========================================================================
- * Accessors and notification registration
- * ========================================================================= */
 
 static int sunxi_usb_phy_get_id_det_impl(const struct sunxi_usb_phy *phy)
 {
@@ -686,10 +670,6 @@ static void sunxi_usb_phy_set_squelch_detect(const struct sunxi_usb_phy *phy,
 {
 	sunxi_usb_phy_write(phy, PHY_SQUELCH_DETECT, enabled ? 0 : 2, 2);
 }
-
-/* =========================================================================
- * Compile-time instance generation via DEFINE_SUNXI_USB_PHY
- * ========================================================================= */
 
 #if DT_PROP_HAS_IDX(DT_NODELABEL(usbphy), usb0_id_det_gpios, 0)
 #define _ID_DET_GPIO_DEV  \
@@ -725,14 +705,26 @@ static void sunxi_usb_phy_set_squelch_detect(const struct sunxi_usb_phy *phy,
 
 #define DEFINE_SUNXI_USB_PHY(usb_node, phy_node)                           \
 	static const struct sunxi_usb_phy_config                           \
-	CONCAT(sunxi_phy, DT_DEP_ORD(phy_node), _cfg) = {                  \
+	CONCAT(sunxi_phy, DT_DEP_ORD(usb_node), _cfg) = {                  \
 		.phy_ctrl_base = DT_REG_ADDR_BY_IDX(phy_node, 0),          \
-		.pmu_base = DT_REG_ADDR_BY_NAME_OR(phy_node, pmu0, 0),     \
+		.pmu_base = COND_CODE_1(                                     \
+			DT_PHA_BY_IDX(usb_node, phys, 0, index),             \
+			(DT_REG_ADDR_BY_NAME_OR(phy_node, pmu1, 0)),         \
+			(DT_REG_ADDR_BY_NAME_OR(phy_node, pmu0, 0))),        \
 		.ccu = DEVICE_DT_GET(DT_NODELABEL(ccu)),                   \
-		.rst = DEVICE_DT_GET(DT_NODELABEL(reset)),                 \
-		.clk_subsys = (clock_control_subsys_t)(uintptr_t)           \
-			      DT_PHA_BY_IDX(phy_node, clocks, 0, clk_id),  \
-		.rst_id = DT_PHA_BY_IDX(phy_node, resets, 0, id),         \
+		.rst = COND_CODE_1(DT_HAS_COMPAT_STATUS_OKAY(              \
+			   allwinner_sun20i_d1_usb_phy),            \
+				   (DEVICE_DT_GET(DT_NODELABEL(ccu_reset))), \
+				   (DEVICE_DT_GET(DT_NODELABEL(reset)))),   \
+		.clk_subsys = COND_CODE_1(DT_HAS_COMPAT_STATUS_OKAY(       \
+					  allwinner_sun20i_d1_usb_phy),     \
+			((clock_control_subsys_t)(uintptr_t)0),            \
+			((clock_control_subsys_t)(uintptr_t)               \
+			 DT_PHA_BY_IDX(phy_node, clocks, 0, clk_id))),    \
+		.rst_id = COND_CODE_1(                                     \
+			DT_PHA_BY_IDX(usb_node, phys, 0, index),             \
+			(DT_PHA_BY_IDX(phy_node, resets, 1, id)),            \
+			(DT_PHA_BY_IDX(phy_node, resets, 0, id))),           \
 		.cfg = SUNXI_USB_PHY_CFG_FOR_COMPAT(phy_node),             \
 		IF_ENABLED(                                                 \
 			DT_PROP_HAS_IDX(DT_NODELABEL(usbphy),               \
@@ -770,7 +762,7 @@ static void sunxi_usb_phy_set_squelch_detect(const struct sunxi_usb_phy *phy,
 		.get_vbus_det = sunxi_usb_phy_get_vbus_det_impl,          \
 		.register_notify = sunxi_usb_phy_register_notify,          \
 		.index = DT_PHA_BY_IDX(usb_node, phys, 0, index),         \
-		.pcfg = &CONCAT(sunxi_phy, DT_DEP_ORD(phy_node), _cfg),   \
+		.pcfg = &CONCAT(sunxi_phy, DT_DEP_ORD(usb_node), _cfg),   \
 	};
 
 /* Early init: set up the delayed work before any PHY enable */
@@ -785,5 +777,17 @@ SYS_INIT(sunxi_usb_phy_early_init, POST_KERNEL,
 
 /*
  * Use the DEFINE_SUNXI_USB_PHY macro to instantiate the PHY pseudo-device.
+ *
+ * PHY0 (index 0) is shared by usbotg / ehci0 / ohci0 (OTG dual-route).
+ * PHY1 (index 1) is dedicated to ehci1 / ohci1 (host-only port).
+ *
+ * The macro selects pmu0/pmu1 and the matching PHY reset from the DT
+ * "resets" array based on the phys <> index cell, so the index==0 OTG
+ * path is completely unaffected by the host-port instantiations below.
  */
 DEFINE_SUNXI_USB_PHY(DT_NODELABEL(usbotg), DT_NODELABEL(usbphy));
+
+#if DT_HAS_COMPAT_STATUS_OKAY(allwinner_sun20i_d1_usb_phy)
+DEFINE_SUNXI_USB_PHY(DT_NODELABEL(ehci1), DT_NODELABEL(usbphy));
+DEFINE_SUNXI_USB_PHY(DT_NODELABEL(ohci1), DT_NODELABEL(usbphy));
+#endif

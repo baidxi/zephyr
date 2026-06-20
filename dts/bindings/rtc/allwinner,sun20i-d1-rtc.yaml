@@ -1,0 +1,23 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner SUN20I D1 / SUN8I T113-S3 RTC (linear-day counter mode)
+
+compatible: "allwinner,sun20i-d1-rtc"
+
+include:
+  - rtc.yaml
+  - rtc-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: false
+
+  clock-names:
+    required: false

@@ -1,0 +1,6 @@
+board:
+  name: m2
+  full_name: BingPi M2 (Allwinner T113-S3)
+  vendor: bingpi
+  socs:
+  - name: sun8i_t113s3

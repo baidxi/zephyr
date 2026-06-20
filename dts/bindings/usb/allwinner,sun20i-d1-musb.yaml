@@ -1,0 +1,33 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Allwinner D1/T113-S3 MUSB USB OTG controller
+
+compatible: "allwinner,sun20i-d1-musb"
+
+include: [usb-controller.yaml, reset-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  resets:
+    required: true
+
+  phys:
+    type: phandle-array
+    required: true
+
+  phy-names:
+    type: string-array
+
+  num-bidir-endpoints:
+    type: int
+    required: true
+    description: Number of bidirectional endpoints including EP0

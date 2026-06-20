@@ -12,6 +12,13 @@ config CLOCK_CONTROL_SUN8I_V3S
 	  This driver provides clock control for the Sun8i V3s SoC,
 	  including bus clock gating for peripherals.
 
+config CLOCK_CONTROL_SUN20I_D1
+	bool "Allwinner D1 / T113-S3 CCU driver"
+	depends on DT_HAS_ALLWINNER_SUN20I_D1_CCU_ENABLED
+	default y
+	help
+	  Enable support for the D1 / T113-S3 CCU (clock gating + reset control).
+
 config CLOCK_CONTROL_SUN8I_DE2
 	bool "Allwinner SUN8I DE2 display clock controller driver"
 	depends on DT_HAS_ALLWINNER_SUN8I_V3S_DE2_CLK_ENABLED

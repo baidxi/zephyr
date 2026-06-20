@@ -1,0 +1,13 @@
+identifier: m2
+name: bingpi m2
+type: soc
+arch: arm
+ram: 131072
+vendor: bingpi
+toolchain:
+  - zephyr
+  - gnuarmemb
+supported:
+  - uart
+  - gpio
+  - timer

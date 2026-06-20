@@ -1,0 +1,17 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_BINGPI_M2
+
+config BOARD
+	default "m2"
+
+if UART_CONSOLE
+
+config UART_NS16550_PORT_0
+	bool
+	default y
+
+endif
+
+endif

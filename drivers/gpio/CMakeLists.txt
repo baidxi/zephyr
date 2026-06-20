@@ -134,6 +134,7 @@ zephyr_library_sources_ifdef(CONFIG_GPIO_XLNX_PS gpio_xlnx_ps.c gpio_xlnx_ps_ban
 zephyr_library_sources_ifdef(CONFIG_GPIO_XMC4XXX gpio_xmc4xxx.c)
 zephyr_library_sources_ifdef(CONFIG_LPGPIO_ESP32 gpio_esp32_lp.c)
 zephyr_library_sources_ifdef(CONFIG_GPIO_SUN8I_V3S gpio_sun8i_v3s.c)
+zephyr_library_sources_ifdef(CONFIG_GPIO_SUN20I_D1 gpio_sun20i_d1.c)
 # zephyr-keep-sorted-stop
 
 # zephyr-keep-sorted-start

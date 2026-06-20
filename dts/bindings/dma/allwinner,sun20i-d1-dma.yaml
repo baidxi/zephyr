@@ -1,0 +1,61 @@
+# Copyright (c) 2026 jeck chen <baidxi404629@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Allwinner sun20i D1 / T113 DMA controller.
+
+  The DMA controller has 16 physical channels and supports linked-list
+  descriptor chaining. It sits on the MBUS and therefore requires both
+  a bus clock and an mbus clock.
+
+  DMA clients must use a single-cell specifier giving the DRQ port
+  number, as defined in <dt-bindings/dma/allwinner,sun20i-d1-dma.h>:
+
+    spi0 {
+      dmas = <&dma 22>, <&dma 22>;
+      dma-names = "rx", "tx";
+    };
+
+compatible: "allwinner,sun20i-d1-dma"
+
+include: dma-controller.yaml
+
+properties:
+  "#dma-cells":
+    const: 1
+
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+    type: phandle-array
+
+  clock-names:
+    required: true
+    type: string-array
+    description: |
+      Must contain at least "bus". When the controller has a dedicated
+      MBUS clock gate, a second entry "mbus" is required.
+
+  resets:
+    required: true
+    type: phandle-array
+
+  dma-channels:
+    type: int
+    required: true
+    const: 16
+    description: Number of physical DMA channels (always 16 on D1/T113).
+
+  dma-requests:
+    type: int
+    required: true
+    const: 48
+    description: Number of DMA request (DRQ) ports.
+
+dma-cells:
+  - channel

@@ -12,6 +12,9 @@ properties:
     required: true
     description: Timer index (0, 1, or 2)
 
+  interrupts:
+    required: true
+
   clocks:
     type: phandle-array
     required: true

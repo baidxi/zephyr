@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config USBH_HUB_CLASS
+	bool "USB Hub Class driver [EXPERIMENTAL]"
+	select EXPERIMENTAL
+	help
+	  USB Hub Class driver for the USB host stack. Handles hub port
+	  power management, connection polling, port reset, and child
+	  device enumeration.
+
+config USBH_HUB_MAX
+	int "Maximum number of USB hubs supported"
+	default 1
+	range 1 8
+	depends on USBH_HUB_CLASS
+	help
+	  Maximum number of USB hubs that can be simultaneously managed.

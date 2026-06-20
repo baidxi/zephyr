@@ -68,6 +68,7 @@ zephyr_library_sources_ifdef(CONFIG_PINCTRL_XLNX_ZYNQ pinctrl_xlnx_zynq.c)
 zephyr_library_sources_ifdef(CONFIG_PINCTRL_XLNX_ZYNQMP pinctrl_xlnx_zynqmp.c)
 zephyr_library_sources_ifdef(CONFIG_PINCTRL_XMC4XXX pinctrl_xmc4xxx.c)
 zephyr_library_sources_ifdef(CONFIG_PINCTRL_SUN8I_V3S pinctrl_sun8i_v3s.c)
+zephyr_library_sources_ifdef(CONFIG_PINCTRL_SUN20I_D1 pinctrl_sun20i_d1.c)
 # zephyr-keep-sorted-stop
 
 add_subdirectory(renesas)
